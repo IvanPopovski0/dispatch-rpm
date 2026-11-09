@@ -17,8 +17,10 @@ How a rate is worked out for each equipment type (van, reefer, flatbed):
 * Company mode ignores all of this and uses rates someone typed in, optionally
   adjusted for diesel.
 
-Anything that looks wrong (outside a sane range, or a jump of more than 20%
-from the previous week) is not applied; the Rates panel says why.
+A number outside a sane range is ignored. One more than 20% away from the last
+accepted number is held back until a report from another week agrees with it,
+so a single bad reading is never used, but a real jump or a long gap since the
+last update can't freeze the rate. The Rates panel says why.
 """
 
 from __future__ import annotations
@@ -59,7 +61,9 @@ DAT_URLS = (
 
 FUEL_MPG = 6.0               # 1 cent per mile for every 6 cents per gallon
 MAX_FUEL_MOVE = 0.75         # $/mi; anything bigger is bad data
-MAX_WEEKLY_CHANGE = 0.20     # reject a new number this far from the previous one
+MAX_WEEKLY_CHANGE = 0.20     # hold back a new number this far from the last accepted one...
+CONFIRM_TOLERANCE = 0.10     # ...until a report from another week comes this close to it
+CONFIRM_DAYS = (5, 21)       # "another week": not the same report re-read, and not one from long ago
 LINEHAUL_RANGE = (1.0, 6.0)
 ALLIN_RANGE = (1.2, 8.0)
 CALIBRATION_DAYS = 4         # linehaul and all-in this close together count as the same week
@@ -339,6 +343,7 @@ class RateUpdater:
         self._dat_urls = tuple(dat_urls or ())
         self._fetch = fetch
         self._run_lock = threading.Lock()
+        self._accept_lock = threading.Lock()  # DAT and market.json are checked in parallel
         self._stop = threading.Event()
         self.done = threading.Event()   # set after the first check finishes
         self.checking = False
@@ -397,18 +402,32 @@ class RateUpdater:
         with ThreadPoolExecutor(max_workers=6) as pool:
             return list(pool.map(get, urls))
 
-    def _accept(self, eq: str, kind: str, value: float, as_of: str) -> str | None:
-        """Why a new number should NOT be stored, or None if it looks fine."""
+    def _accept(self, eq: str, kind: str, value: float, as_of: str, source: str, note: str) -> str | None:
+        """Store a new number, or say why it was ignored or held back."""
         low, high = LINEHAUL_RANGE if kind == "linehaul" else ALLIN_RANGE
         if not low <= value <= high:
-            return f"${value:.2f} is outside ${low:.2f}-${high:.2f}"
-        earlier = [o for o in self._storage.observations()
-                   if o["equipment"] == eq and o["kind"] == kind and o["as_of"] < as_of
-                   and o["source"] != "manual"]
-        if earlier:
-            prev = earlier[-1]["value"]
-            if abs(value / prev - 1) > MAX_WEEKLY_CHANGE:
-                return f"${value:.2f} is too far from ${prev:.2f} the week before"
+            return f"ignored ${value:.2f} is outside ${low:.2f}-${high:.2f}"
+        with self._accept_lock:
+            earlier = [o for o in self._storage.observations()
+                       if o["equipment"] == eq and o["kind"] == kind and o["as_of"] < as_of
+                       and o["source"] != "manual"]
+            prev = earlier[-1] if earlier else None
+            change = value / prev["value"] - 1 if prev else 0.0
+            if abs(change) > MAX_WEEKLY_CHANGE:
+                backers = [h for h in self._storage.held_observations(eq, kind)
+                           if CONFIRM_DAYS[0] <= abs(_days(h["as_of"], as_of)) <= CONFIRM_DAYS[1]
+                           and abs(value / h["value"] - 1) <= CONFIRM_TOLERANCE]
+                if not backers:
+                    self._storage.hold_observation(eq, kind, value, as_of, source, note)
+                    since = _short(prev["as_of"])
+                    if prev["as_of"][:4] != as_of[:4]:
+                        since += f", {prev['as_of'][:4]}"
+                    return (f"held back ${value:.2f}, {abs(change):.0%} {'above' if change > 0 else 'below'} "
+                            f"${prev['value']:.2f} from {since}; waiting for another week's report to confirm it")
+                for h in backers:
+                    self._storage.add_observation(eq, kind, h["value"], h["as_of"], h["source"], h["note"])
+            self._storage.add_observation(eq, kind, value, as_of, source, note)
+            self._storage.clear_held(eq, kind)
         return None
 
     def _check_dat(self) -> None:
@@ -431,11 +450,10 @@ class RateUpdater:
             if eq not in newest:
                 continue
             day, value, title = newest[eq]
-            reason = self._accept(eq, "linehaul", value, day)
+            reason = self._accept(eq, "linehaul", value, day, "dat", title)
             if reason:
-                problems.append(f"{_NICE[eq]}: ignored {reason}")
+                problems.append(f"{_NICE[eq]}: {reason}")
                 continue
-            self._storage.add_observation(eq, "linehaul", value, day, "dat", title)
             parts.append(f"{_NICE[eq]} ${value:.2f} linehaul, {_short(day)}")
         message = "; ".join(parts + problems) or "Reached DAT, but no new rate reports were found."
         self._storage.set_source_status("dat", bool(parts), message)
@@ -463,11 +481,9 @@ class RateUpdater:
             return
         problems = []
         for eq, kind, value, day in rows:
-            reason = self._accept(eq, kind, value, day)
+            reason = self._accept(eq, kind, value, day, "teamfile", "market.json")
             if reason:
-                problems.append(f"{eq}: ignored {reason}")
-            else:
-                self._storage.add_observation(eq, kind, value, day, "teamfile", "market.json")
+                problems.append(f"{eq}: {reason}")
         message = "; ".join([f"market.json from {_short(rows[0][3])}"] + problems)
         self._storage.set_source_status("teamfile", True, message)
 

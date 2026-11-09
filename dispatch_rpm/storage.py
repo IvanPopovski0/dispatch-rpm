@@ -87,6 +87,16 @@ CREATE TABLE IF NOT EXISTS rate_obs (
     note      TEXT NOT NULL DEFAULT '',
     PRIMARY KEY (equipment, kind, source, as_of)
 );
+-- Numbers held back for being far from the last accepted one, until a report from another week agrees.
+CREATE TABLE IF NOT EXISTS rate_held (
+    equipment TEXT NOT NULL,
+    kind      TEXT NOT NULL,
+    value     REAL NOT NULL,
+    as_of     TEXT NOT NULL,
+    source    TEXT NOT NULL,
+    note      TEXT NOT NULL DEFAULT '',
+    PRIMARY KEY (equipment, kind, source, as_of)
+);
 CREATE TABLE IF NOT EXISTS diesel (
     week  TEXT PRIMARY KEY,
     price REAL NOT NULL
@@ -236,6 +246,19 @@ class Storage:
     def delete_observations(self, equipment: str, source: str) -> int:
         return self._write("DELETE FROM rate_obs WHERE equipment = ? AND source = ?",
                            (equipment, source)).rowcount
+
+    def hold_observation(self, equipment: str, kind: str, value: float, as_of: str,
+                         source: str, note: str = "") -> None:
+        self._write("INSERT OR REPLACE INTO rate_held VALUES (?, ?, ?, ?, ?, ?)",
+                    (equipment, kind, value, as_of, source, note))
+
+    def held_observations(self, equipment: str, kind: str) -> list[dict]:
+        return [dict(r) for r in self._query(
+            "SELECT equipment, kind, value, as_of, source, note FROM rate_held "
+            "WHERE equipment = ? AND kind = ? ORDER BY as_of", (equipment, kind))]
+
+    def clear_held(self, equipment: str, kind: str) -> None:
+        self._write("DELETE FROM rate_held WHERE equipment = ? AND kind = ?", (equipment, kind))
 
     def put_diesel(self, rows: list[tuple[str, float]]) -> None:
         with self._lock, self._db:

@@ -2,7 +2,8 @@ import json
 import tempfile
 import time
 import unittest
-from datetime import date
+from datetime import date, datetime, timezone
+from email.utils import format_datetime
 from pathlib import Path
 
 from dispatch_rpm import market
@@ -50,6 +51,14 @@ DIESEL = b"""observation_date,GASDESW
 2026-11-02,3.840
 2026-11-09,3.900
 """
+
+
+def van_report(value, day):
+    """A DAT feed with one dry van report."""
+    when = format_datetime(datetime.fromisoformat(day).replace(hour=15, tzinfo=timezone.utc))
+    return (f'<rss version="2.0"><channel><item><title>Dry Van Report: weekly update</title>'
+            f"<pubDate>{when}</pubDate><description>Dry van spot linehaul rates paid to carriers averaged "
+            f"${value:.2f} per mile last week, minus fuel.</description></item></channel></rss>").encode()
 
 
 class ParsingTest(unittest.TestCase):
@@ -194,7 +203,97 @@ class StoreTest(unittest.TestCase):
         u.run()
         m = resolve(self.db)
         self.assertNotEqual(m["auto"]["van"]["source"], "dat")
-        self.assertIn("too far", m["sources"][0]["message"])
+        self.assertIn("Dry van: held back $3.40, 52% above $2.23 from Oct 30;", m["sources"][0]["message"])
+
+    def check_van(self, u, responses, value, day):
+        """One DAT check that finds a dry van report; returns the DAT status message."""
+        responses["feed"] = van_report(value, day)
+        u.run(force=True)
+        return {s["key"]: s for s in resolve(self.db)["sources"]}["dat"]["message"]
+
+    def van_linehaul(self):
+        return [(o["value"], o["as_of"]) for o in self.db.observations()
+                if o["equipment"] == "van" and o["kind"] == "linehaul"]
+
+    def test_jump_after_a_long_gap_is_held_then_confirmed_by_the_next_week(self):
+        responses = {}
+        u, _ = self.updater(responses)
+        msg = self.check_van(u, responses, 2.80, "2027-06-07")
+        self.assertEqual(msg, "Dry van: held back $2.80, 26% above $2.23 from Oct 30, 2026; "
+                              "waiting for another week's report to confirm it")
+        self.assertEqual(resolve(self.db)["auto"]["van"]["source"], "builtin")
+
+        msg = self.check_van(u, responses, 2.84, "2027-06-14")
+        self.assertEqual(msg, "Dry van $2.84 linehaul, Jun 14")
+        van = resolve(self.db)["auto"]["van"]
+        self.assertEqual((van["source"], van["linehaul"], van["as_of"]), ("dat", 2.84, "2027-06-14"))
+        self.assertEqual(self.van_linehaul(), [(2.23, "2026-10-30"), (2.80, "2027-06-07"), (2.84, "2027-06-14")])
+        self.assertEqual(self.db.held_observations("van", "linehaul"), [])
+
+        # From here on, weekly reports are checked against the new level.
+        self.check_van(u, responses, 2.90, "2027-06-21")
+        self.assertEqual(resolve(self.db)["auto"]["van"]["linehaul"], 2.90)
+
+    def test_one_off_spike_is_never_used(self):
+        responses = {}
+        u, _ = self.updater(responses)
+        self.check_van(u, responses, 2.26, "2026-11-09")
+        msg = self.check_van(u, responses, 3.40, "2026-11-16")
+        self.assertIn("held back $3.40, 50% above $2.26 from Nov 9;", msg)
+        self.assertEqual(resolve(self.db)["auto"]["van"]["linehaul"], 2.26)
+
+        self.check_van(u, responses, 2.29, "2026-11-23")
+        self.assertEqual(resolve(self.db)["auto"]["van"]["linehaul"], 2.29)
+        self.assertNotIn(3.40, [v for v, _ in self.van_linehaul()])
+        self.assertEqual(self.db.held_observations("van", "linehaul"), [])
+
+        # The dropped spike can't vouch for a later jump that happens to match it.
+        msg = self.check_van(u, responses, 3.30, "2026-11-30")
+        self.assertIn("held back $3.30, 44% above $2.29", msg)
+        self.assertEqual(resolve(self.db)["auto"]["van"]["linehaul"], 2.29)
+
+    def test_ordinary_updates_are_used_at_once(self):
+        responses = {}
+        u, _ = self.updater(responses)
+        self.assertEqual(self.check_van(u, responses, 2.40, "2026-11-09"), "Dry van $2.40 linehaul, Nov 9")
+        self.assertEqual(self.check_van(u, responses, 2.00, "2026-11-16"), "Dry van $2.00 linehaul, Nov 16")
+        self.assertEqual(resolve(self.db)["auto"]["van"]["linehaul"], 2.00)
+        self.assertEqual(self.db.held_observations("van", "linehaul"), [])
+
+    def test_rejected_numbers_dont_confirm_each_other(self):
+        responses = {}
+        u, _ = self.updater(responses)
+        steps = [
+            (7.50, "2027-06-01", "ignored $7.50 is outside $1.00-$6.00"),  # not held either
+            (2.80, "2027-06-07", "held back $2.80"),
+            (2.80, "2027-06-07", "held back $2.80"),  # the same report, re-read 12 hours later
+            (2.80, "2027-06-08", "held back $2.80"),  # the same post, dated a day off in another feed
+            (3.20, "2027-06-14", "held back $3.20"),  # 14% from the held $2.80s
+            (2.80, "2027-07-15", "held back $2.80"),  # the matching $2.80s are 5+ weeks old
+        ]
+        for value, day, expected in steps:
+            with self.subTest(value=value, day=day):
+                self.assertIn(expected, self.check_van(u, responses, value, day))
+                self.assertEqual(resolve(self.db)["auto"]["van"]["source"], "builtin")
+        self.assertNotIn(7.50, [h["value"] for h in self.db.held_observations("van", "linehaul")])
+        self.assertEqual(self.van_linehaul(), [(2.23, "2026-10-30")])
+
+    def test_team_file_jumps_are_held_too(self):
+        def team(day, van):
+            return json.dumps({"updated": day, "van": van, "reefer": 3.63, "flatbed": 3.62}).encode()
+        responses = {"team": team("2027-06-04", 3.90)}
+        u, _ = self.updater(responses, market_url="team")
+        u.run()
+        m = resolve(self.db)
+        self.assertIn("van: held back $3.90, 27% above $3.07 from Oct 30, 2026;",
+                      {s["key"]: s for s in m["sources"]}["teamfile"]["message"])
+        self.assertEqual(m["active"]["van"]["source"], "builtin")
+        self.assertEqual(m["active"]["reefer"]["source"], "teamfile")
+
+        responses["team"] = team("2027-06-11", 3.95)
+        u.run(force=True)
+        van = resolve(self.db)["active"]["van"]
+        self.assertEqual((van["source"], van["value"], van["as_of"]), ("teamfile", 3.95, "2027-06-11"))
 
     def test_team_file(self):
         team = json.dumps({"updated": "2026-11-12", "van": 3.20, "reefer": 3.70, "flatbed": 3.65}).encode()

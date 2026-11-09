@@ -2,8 +2,8 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
 import {
-  averageRpm, daysOld, driveTime, evaluate, laneKey, money, normalizeZip,
-  parseNumber, periodAverages,
+  SIMPLE, averageRpm, daysOld, driveTime, evaluate, implausibleOffer, laneKey, money, normalizeZip,
+  parseNumber, periodAverages, roundUp, shortDate, simpleAdvice, tripFacts,
 } from '../dispatch_rpm/static/calc.js';
 
 test('parseNumber accepts what people type', () => {
@@ -121,8 +121,7 @@ test('daysOld counts local calendar days', () => {
   assert.equal(daysOld('', now), null);
 });
 
-test('simpleAdvice uses the market average as the target', async () => {
-  const { simpleAdvice, roundUp } = await import('../dispatch_rpm/static/calc.js');
+test('simpleAdvice uses the market average as the target', () => {
   const market = 3.0;
 
   const take = simpleAdvice({ loaded: 1000, deadhead: 0, rate: 3100, market });
@@ -143,14 +142,12 @@ test('simpleAdvice uses the market average as the target', async () => {
   assert.equal(simpleAdvice({ loaded: 0, rate: 2000, market }), null);
 });
 
-test('simpleAdvice short trips', async () => {
-  const { simpleAdvice } = await import('../dispatch_rpm/static/calc.js');
+test('simpleAdvice short trips', () => {
   assert.equal(simpleAdvice({ loaded: 120, rate: 600, market: 3 }).shortTrip, true);
   assert.equal(simpleAdvice({ loaded: 1300, rate: 4000, market: 3 }).shortTrip, false);
 });
 
-test('tripFacts: miles, pay per mile and driving days from the SIMPLE constants', async () => {
-  const { SIMPLE, tripFacts } = await import('../dispatch_rpm/static/calc.js');
+test('tripFacts: miles, pay per mile and driving days from the SIMPLE constants', () => {
   const long = tripFacts({ loaded: 1200, deadhead: 100, rate: 3900 }); // 23.6 h of driving
   assert.equal(long.totalMiles, 1300);
   assert.equal(long.perMile, 3);
@@ -165,16 +162,14 @@ test('tripFacts: miles, pay per mile and driving days from the SIMPLE constants'
   assert.equal(tripFacts({ loaded: 500, deadhead: null }).totalMiles, 500, 'empty miles unknown');
 });
 
-test('tripFacts: no loaded miles gives no facts instead of Infinity', async () => {
-  const { simpleAdvice, tripFacts } = await import('../dispatch_rpm/static/calc.js');
+test('tripFacts: no loaded miles gives no facts instead of Infinity', () => {
   assert.equal(tripFacts({ loaded: 0, rate: 2000 }), null);           // same pickup and delivery ZIP
   assert.equal(tripFacts({ loaded: 0, deadhead: 40, rate: 2000 }), null);
   assert.equal(tripFacts({ loaded: null, rate: 2000 }), null);        // still looking up
   assert.equal(simpleAdvice({ loaded: 0, deadhead: 40, rate: 2000, market: 3 }), null);
 });
 
-test('simpleAdvice minimum does not jump a step on floating-point noise', async () => {
-  const { simpleAdvice } = await import('../dispatch_rpm/static/calc.js');
+test('simpleAdvice minimum does not jump a step on floating-point noise', () => {
   // $3.20 average -> walk away under $2.72/mi; 625 miles at $2.72 is exactly $1,700
   const a = simpleAdvice({ loaded: 625, rate: 1500, market: 3.2 });
   assert.equal(a.floorRate, 1700);
@@ -183,14 +178,12 @@ test('simpleAdvice minimum does not jump a step on floating-point noise', async 
   assert.equal(simpleAdvice({ loaded: 1401, rate: 1000, market: 1.53 }).floorRate, 1823);
 });
 
-test('shortDate', async () => {
-  const { shortDate } = await import('../dispatch_rpm/static/calc.js');
+test('shortDate', () => {
   assert.equal(shortDate('2026-11-02'), 'Nov 2');
   assert.equal(shortDate(''), '');
 });
 
-test('implausibleOffer catches an extra zero', async () => {
-  const { implausibleOffer } = await import('../dispatch_rpm/static/calc.js');
+test('implausibleOffer catches an extra zero', () => {
   // $21,000 for 719 miles against a $3.07 average: almost certainly $2,100
   const typo = implausibleOffer({ rate: 21000, totalMiles: 719, market: 3.07 });
   assert.ok(typo);

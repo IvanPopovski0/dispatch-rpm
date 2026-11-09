@@ -1,4 +1,5 @@
 import json
+import sqlite3
 import tempfile
 import time
 import unittest
@@ -189,6 +190,13 @@ class StoreTest(unittest.TestCase):
         u.run(force=True)
         self.assertTrue(calls)
 
+    def test_team_file_is_off_unless_a_url_is_given(self):
+        calls = []
+        u = RateUpdater(self.db, diesel_url=None, dat_urls=None, fetch=lambda url, timeout: calls.append(url))
+        u.run()
+        self.assertEqual(calls, [])
+        self.assertIsNone({s["key"]: s for s in resolve(self.db)["sources"]}["teamfile"]["ok"])
+
     def test_offline_keeps_builtin_numbers(self):
         u, _ = self.updater({})
         u.run()
@@ -345,7 +353,6 @@ class StoreTest(unittest.TestCase):
                          [3.00, 3.60, 3.50])
 
     def test_migrated_company_rates_keep_their_diesel_adjustment(self):
-        import sqlite3
         path = Path(self.tmp.name) / "old.db"
         con = sqlite3.connect(path)
         con.execute("CREATE TABLE settings (key TEXT PRIMARY KEY, value TEXT NOT NULL)")

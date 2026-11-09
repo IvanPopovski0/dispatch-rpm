@@ -1,9 +1,9 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
+import { SIMPLE, driveTime, tripFacts } from '../dispatch_rpm/static/calc.js';
 import { FakeElement, fakeRoot } from './fake-dom.mjs';
 
-const { SIMPLE, driveTime, tripFacts } = await import('../dispatch_rpm/static/calc.js');
 const { createSimpleView } = await import('../dispatch_rpm/static/simple.js');
 
 function mount() {

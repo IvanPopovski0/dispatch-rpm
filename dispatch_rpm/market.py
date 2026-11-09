@@ -46,7 +46,7 @@ log = logging.getLogger(__name__)
 
 # Optional: point this at your own repo to push numbers to every copy of the app,
 # e.g. https://raw.githubusercontent.com/jane/dispatch-rpm/main/market.json
-MARKET_URL = "https://raw.githubusercontent.com/YOUR_USERNAME/dispatch-rpm/main/market.json"
+MARKET_URL: str | None = None
 # EIA "U.S. No 2 Diesel Retail Prices", weekly, $/gallon.
 DIESEL_URL = "https://fred.stlouisfed.org/graph/fredgraph.csv?id=GASDESW"
 # DAT's weekly market reports. Each of these lags sometimes; together they don't.
@@ -338,7 +338,7 @@ class RateUpdater:
                  diesel_url: str | None = DIESEL_URL, dat_urls: tuple[str, ...] | None = DAT_URLS,
                  fetch: Callable[[str, float], bytes] = fetch_bytes):
         self._storage = storage
-        self._market_url = market_url if market_url and "YOUR_USERNAME" not in market_url else None
+        self._market_url = market_url
         self._diesel_url = diesel_url
         self._dat_urls = tuple(dat_urls or ())
         self._fetch = fetch

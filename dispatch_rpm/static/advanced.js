@@ -282,6 +282,5 @@ export function createAdvancedView(root, ctx) {
     onEnter() {
       save();
     },
-    setStatus,
   };
 }

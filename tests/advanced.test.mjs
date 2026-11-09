@@ -21,6 +21,10 @@ function mount() {
     setSetting() {},
     render() {},
     clearLoad() {},
+    flashStatus(show) {
+      ctx.flash = true;
+      show();
+    },
   };
   const view = createAdvancedView(root, ctx);
   return {
@@ -39,22 +43,29 @@ function mount() {
   };
 }
 
-/** The status line right after a quote is saved: the load is cleared and the save message shows. */
-function justSaved(a) {
-  a.ctx.flash = true;
-  a.view.setStatus('Saved Atlanta, GA → Chicago, IL at $3.21 all-in.');
+/** Save the load with Enter, as the dispatcher would; the server stores the quote. */
+async function justSaved(a) {
+  a.render({});
+  globalThis.fetch = async () => new Response(JSON.stringify({
+    id: 1, created: Date.now() / 1000, pickup: '30318', dropoff: '60601', pickup_name: 'Atlanta, GA',
+    dropoff_name: 'Chicago, IL', equipment: 'van', loaded: 716, deadhead: 0, rate: 2300,
+  }), { status: 200 });
+  a.view.onEnter();
+  await new Promise((resolve) => setTimeout(resolve, 10));
+  assert.deepEqual(a.status(), ['Saved Atlanta, GA → Chicago, IL at $3.21 all-in.', 'status ']);
+  assert.equal(a.ctx.quotes.length, 1);
 }
 
-test('Advanced: the save message stays while there is nothing new to say', () => {
+test('Advanced: the save message stays while there is nothing new to say', async () => {
   const a = mount();
-  justSaved(a);
+  await justSaved(a);
   a.render({ zips: EMPTY, route: null, loaded: null, rate: null });
   assert.deepEqual(a.status(), ['Saved Atlanta, GA → Chicago, IL at $3.21 all-in.', 'status ']);
 });
 
-test('Advanced: the next load\'s lookup and warnings replace the save message at once', () => {
+test('Advanced: the next load\'s lookup and warnings replace the save message at once', async () => {
   const a = mount();
-  justSaved(a);
+  await justSaved(a);
   a.render({ route: null, loaded: null, tripLoading: true });
   assert.equal(a.status()[0], 'Looking up miles…');
 
@@ -66,9 +77,9 @@ test('Advanced: the next load\'s lookup and warnings replace the save message at
   assert.deepEqual(a.status(), ['', 'status ']);
 });
 
-test('Advanced: errors show through the save message too', () => {
+test('Advanced: errors show through the save message too', async () => {
   const a = mount();
-  justSaved(a);
+  await justSaved(a);
   a.render({ route: null, loaded: null, tripError: 'No road route between these ZIP codes' });
   assert.deepEqual(a.status(), ['No road route between these ZIP codes. Type the miles in.', 'status error']);
 

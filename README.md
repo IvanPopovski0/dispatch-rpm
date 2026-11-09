@@ -90,7 +90,7 @@ npm test
 To build the executable:
 
 ```bash
-pip install pyinstaller
+pip install -r requirements-build.txt
 python build.py
 ```
 

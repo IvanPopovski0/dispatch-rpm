@@ -1,6 +1,6 @@
 """Build a single-file executable with PyInstaller.
 
-    pip install pyinstaller
+    pip install -r requirements-build.txt
     python build.py
 
 Output goes to dist/ (DispatchRPM.exe on Windows, DispatchRPM elsewhere).

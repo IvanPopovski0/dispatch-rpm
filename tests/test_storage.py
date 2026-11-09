@@ -1,3 +1,4 @@
+import sqlite3
 import tempfile
 import unittest
 from pathlib import Path
@@ -47,7 +48,6 @@ class StorageTest(unittest.TestCase):
 
     def test_migrates_old_market_settings(self):
         path = Path(self.tmp.name) / "old.db"
-        import sqlite3
         con = sqlite3.connect(path)
         con.execute("CREATE TABLE settings (key TEXT PRIMARY KEY, value TEXT NOT NULL)")
         con.executemany("INSERT INTO settings VALUES (?, ?)", [
@@ -66,7 +66,6 @@ class StorageTest(unittest.TestCase):
 
     def old_company_db(self, rows):
         """A settings table as 2.1 left it, with one company_date for every company rate."""
-        import sqlite3
         path = Path(self.tmp.name) / "company.db"
         con = sqlite3.connect(path)
         con.execute("CREATE TABLE settings (key TEXT PRIMARY KEY, value TEXT NOT NULL)")

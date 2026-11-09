@@ -6,7 +6,7 @@ import { morph, setText } from './fx.js';
 
 const ICONS = { book: '✓', negotiate: '↑', drop: '✕', check: '!' };
 
-const clientId =crypto.randomUUID?.() ?? `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+const clientId = crypto.randomUUID?.() ?? `${Date.now()}-${Math.random().toString(36).slice(2)}`;
 
 let connectionListener = () => {};
 

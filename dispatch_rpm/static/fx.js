@@ -4,7 +4,7 @@
 
 const reduceMotion = matchMedia('(prefers-reduced-motion: reduce)');
 
-export function effectsOn() {
+function effectsOn() {
   return !document.documentElement.classList.contains('fx-off');
 }
 
@@ -67,7 +67,7 @@ export function segmented(root, onChange) {
     });
   });
   new ResizeObserver(() => place(false)).observe(root);
-  return { set, get: () => value, relayout: () => place(false) };
+  return { set, relayout: () => place(false) };
 }
 
 // ---------------------------------------------------------------- small motions

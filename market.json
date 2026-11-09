@@ -1,0 +1,8 @@
+{
+  "updated": "2026-10-30",
+  "van": 3.07,
+  "reefer": 3.63,
+  "flatbed": 3.62,
+  "linehaul": { "van": 2.23, "reefer": 2.71, "flatbed": 2.61 },
+  "source": "DAT spot market data, Oct 24-30, 2026: 7-day average broker-to-carrier rates (all-in) and linehaul"
+}

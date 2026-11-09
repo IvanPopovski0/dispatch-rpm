@@ -1,0 +1,199 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Dispatch RPM</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0' y1='0' x2='1' y2='1'%3E%3Cstop offset='0' stop-color='%23f6e3b8'/%3E%3Cstop offset='1' stop-color='%23b8894a'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect width='32' height='32' rx='9' fill='%230b0f17'/%3E%3Cpath d='M8 21l6-10 4 6 2-3 4 7z' fill='url(%23g)'/%3E%3C/svg%3E">
+<link rel="stylesheet" href="style.css">
+<script type="module" src="main.js"></script>
+</head>
+<body>
+<div class="app">
+  <header class="topbar glass">
+    <div class="brand">
+      <span class="logo" aria-hidden="true"></span>
+      <span class="brand-name">Dispatch <b>RPM</b></span>
+    </div>
+
+    <div class="seg" id="mode-seg" role="radiogroup" aria-label="Mode">
+      <span class="seg-thumb" aria-hidden="true"></span>
+      <button type="button" role="radio" data-value="simple">Simple</button>
+      <button type="button" role="radio" data-value="advanced">Advanced</button>
+    </div>
+
+    <button type="button" class="rate-chip" id="rates-open" aria-haspopup="dialog">
+      <span class="pulse" aria-hidden="true"></span>
+      <span class="rate-chip-label" id="rate-chip-label">Rates</span>
+    </button>
+  </header>
+
+  <p class="conn" id="conn" role="status"></p>
+
+  <main>
+    <!-- ============================================================ SIMPLE -->
+    <section class="view view-simple" id="view-simple" aria-label="Simple">
+      <h1 class="hero-title">Is this load worth it?</h1>
+
+      <div class="simple-grid">
+      <div class="glass panel form">
+        <div class="seg seg-wide" data-equipment role="radiogroup" aria-label="Truck type">
+          <span class="seg-thumb" aria-hidden="true"></span>
+          <button type="button" role="radio" data-value="van">Dry van</button>
+          <button type="button" role="radio" data-value="reefer">Reefer</button>
+          <button type="button" role="radio" data-value="flatbed">Flatbed</button>
+        </div>
+
+        <div class="q">
+          <label for="s-truck">Where is the truck now? <small>ZIP code</small></label>
+          <input id="s-truck" data-field="truck" inputmode="numeric" maxlength="10" autocomplete="off" placeholder="30318">
+          <p class="found" data-found="truck"></p>
+        </div>
+        <div class="q-row">
+          <div class="q">
+            <label for="s-pickup">Pickup ZIP</label>
+            <input id="s-pickup" data-field="pickup" inputmode="numeric" maxlength="10" autocomplete="off">
+            <p class="found" data-found="pickup"></p>
+          </div>
+          <div class="route-arrow" aria-hidden="true"><span></span></div>
+          <div class="q">
+            <label for="s-dropoff">Delivery ZIP</label>
+            <input id="s-dropoff" data-field="dropoff" inputmode="numeric" maxlength="10" autocomplete="off">
+            <p class="found" data-found="dropoff"></p>
+          </div>
+        </div>
+        <div class="q">
+          <label for="s-rate">What is the broker paying? <small>total $</small></label>
+          <div class="money"><span>$</span><input id="s-rate" data-field="rate" inputmode="decimal" autocomplete="off" placeholder="2,000"></div>
+          <p class="found" data-found="rate"></p>
+        </div>
+      </div>
+
+      <div class="simple-side">
+        <section class="answer glass" id="s-answer" aria-live="polite">
+          <h2>Fill in the questions</h2>
+        </section>
+
+        <div class="tiles" id="s-facts"></div>
+
+        <button type="button" class="btn btn-ghost btn-block" id="s-next">Next load <kbd>Esc</kbd></button>
+        <p class="note" id="s-note"></p>
+      </div>
+      </div>
+    </section>
+
+    <!-- ============================================================ ADVANCED -->
+    <section class="view view-advanced" id="view-advanced" aria-label="Advanced" hidden>
+      <div class="adv-grid">
+        <div class="glass panel">
+          <div class="panel-head">
+            <h2 class="eyebrow">Load</h2>
+            <div class="seg" data-equipment role="radiogroup" aria-label="Truck type">
+              <span class="seg-thumb" aria-hidden="true"></span>
+              <button type="button" role="radio" data-value="van">Van</button>
+              <button type="button" role="radio" data-value="reefer">Reefer</button>
+              <button type="button" role="radio" data-value="flatbed">Flatbed</button>
+            </div>
+          </div>
+          <div class="fields">
+            <label>Truck at ZIP<input id="a-truck" data-field="truck" inputmode="numeric" maxlength="10" autocomplete="off" placeholder="optional"></label>
+            <label>Pickup ZIP<input id="a-pickup" data-field="pickup" inputmode="numeric" maxlength="10" autocomplete="off"></label>
+            <label>Drop ZIP<input id="a-dropoff" data-field="dropoff" inputmode="numeric" maxlength="10" autocomplete="off"></label>
+            <label>Loaded miles<input id="a-loaded" data-field="loaded" inputmode="decimal" autocomplete="off" placeholder="auto"></label>
+            <label>Deadhead miles<input id="a-deadhead" data-field="deadhead" inputmode="decimal" autocomplete="off" placeholder="auto"></label>
+            <label>Offered rate $<input id="a-rate" data-field="rate" inputmode="decimal" autocomplete="off"></label>
+          </div>
+          <p class="status" id="a-status"></p>
+          <div class="row">
+            <button type="button" class="btn btn-gold" id="a-save">Save quote <kbd>Enter</kbd></button>
+            <button type="button" class="btn btn-ghost" id="a-clear">Clear <kbd>Esc</kbd></button>
+            <a class="link" id="a-gmaps" href="#" target="_blank" rel="noopener" hidden>Open in Google Maps ↗</a>
+          </div>
+        </div>
+
+        <div class="adv-side">
+          <section class="verdict glass" id="a-verdict" aria-live="polite"><h2>Enter pickup, drop and rate</h2></section>
+          <div class="tiles tiles-2" id="a-stats"></div>
+        </div>
+      </div>
+
+      <div class="glass panel">
+        <div class="panel-head">
+          <h2 class="eyebrow">Your averages <span>all-in $/mi from saved quotes</span></h2>
+        </div>
+        <div class="tiles tiles-4" id="a-averages"></div>
+      </div>
+
+      <div class="adv-grid adv-grid-even">
+        <details class="glass panel disclosure">
+          <summary><span class="eyebrow">Targets</span><span class="summary-hint" id="a-targets-hint"></span></summary>
+          <div class="fields fields-3">
+            <label>Target all-in $/mi<input data-setting="target" inputmode="decimal"></label>
+            <label>Walk-away $/mi<input data-setting="floor" inputmode="decimal"></label>
+            <label>Avg speed mph<input data-setting="speed" inputmode="decimal"></label>
+          </div>
+          <p class="status" id="a-settings-note"></p>
+        </details>
+        <details class="glass panel disclosure" id="a-history-card">
+          <summary><span class="eyebrow">Saved quotes</span><span class="summary-hint" id="a-history-count"></span></summary>
+          <div class="row"><a class="btn btn-ghost btn-sm" href="/api/quotes.csv" download>Export CSV</a></div>
+          <div class="table-wrap" id="a-history"></div>
+        </details>
+      </div>
+    </section>
+  </main>
+
+  <footer class="foot">
+    <span>Miles: <a href="https://project-osrm.org" target="_blank" rel="noopener">OSRM</a> · map data © <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap contributors</a> · ZIPs: <a href="https://zippopotam.us" target="_blank" rel="noopener">Zippopotam.us</a> · rates: DAT, EIA</span>
+    <span><button type="button" class="link" id="fx-toggle">Motion on</button> · <span id="version"></span></span>
+  </footer>
+</div>
+
+<!-- ============================================================ RATES SHEET -->
+<div class="scrim" id="rates-scrim" hidden></div>
+<aside class="sheet glass" id="rates-sheet" role="dialog" aria-modal="true" aria-labelledby="rates-title" hidden>
+  <header class="sheet-head">
+    <h2 id="rates-title">Rates</h2>
+    <button type="button" class="icon-btn" id="rates-close" aria-label="Close">✕</button>
+  </header>
+  <p class="sheet-lede">The $/mile every verdict is measured against. Both Simple and Advanced use it.</p>
+
+  <div class="seg seg-wide" id="rate-mode-seg" role="radiogroup" aria-label="Rate source">
+    <span class="seg-thumb" aria-hidden="true"></span>
+    <button type="button" role="radio" data-value="auto">National average</button>
+    <button type="button" role="radio" data-value="company">Company rates</button>
+  </div>
+
+  <div id="rates-auto">
+    <div class="rate-list" id="rate-list"></div>
+    <div class="sheet-section">
+      <div class="panel-head">
+        <h3 class="eyebrow">Sources</h3>
+        <button type="button" class="btn btn-ghost btn-sm" id="rates-check">Check now</button>
+      </div>
+      <ul class="sources" id="rate-sources"></ul>
+      <p class="fine">Every 12 hours the app reads DAT's weekly national reports and the U.S. diesel price.
+        Rate = DAT linehaul + fuel surcharge, with the surcharge moving 1¢/mi per 6¢/gal of diesel.
+        Numbers that jump more than 20% in a week are held back.</p>
+    </div>
+  </div>
+
+  <div id="rates-company" hidden>
+    <p class="fine">For rates a manager gives you. They're kept on this computer and replace the national average everywhere.</p>
+    <div class="fields fields-3">
+      <label>Dry van $/mi<input data-company="van" inputmode="decimal" placeholder="3.25"></label>
+      <label>Reefer $/mi<input data-company="reefer" inputmode="decimal" placeholder="3.80"></label>
+      <label>Flatbed $/mi<input data-company="flatbed" inputmode="decimal" placeholder="3.70"></label>
+    </div>
+    <div class="fields">
+      <label>Set by<input id="company-by" maxlength="60" autocomplete="off" placeholder="Name"></label>
+    </div>
+    <label class="switch-row">
+      <span><b>Adjust for diesel every week</b><small>Moves these rates 1¢/mi per 6¢/gal from the day they were set.</small></span>
+      <button type="button" class="switch" id="company-diesel" role="switch" aria-checked="true"><span></span></button>
+    </label>
+    <p class="fine" id="company-meta"></p>
+  </div>
+</aside>
+</body>
+</html>

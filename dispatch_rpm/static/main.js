@@ -13,10 +13,26 @@ const $ = (id) => document.getElementById(id);
 const RATE_KEYS = new Set(['rate_mode', 'company_van', 'company_reefer', 'company_flatbed',
   'company_by', 'company_van_date', 'company_reefer_date', 'company_flatbed_date', 'company_diesel']);
 
-const saver = createSettingsSaver(async (saved) => {
-  if (!Object.keys(saved).some((key) => RATE_KEYS.has(key))) return;
-  // The server works out company/national rates; ask again now that the change is stored.
-  try { ctx.setMarket(await api('/api/market')); } catch { /* shown by the connection notice */ }
+let connected = true;
+const refused = new Map();  // setting key -> why the server wouldn't save it
+
+function renderNotice() {
+  $('conn').textContent = !connected
+    ? 'The app has stopped. Close this window and open Dispatch RPM again.'
+    : [...refused.values()].map((why) => `Couldn't save a setting: ${why}.`).join(' ');
+}
+
+const saver = createSettingsSaver({
+  async onSaved(saved) {
+    if (Object.keys(saved).filter((key) => refused.delete(key)).length) renderNotice();
+    if (!Object.keys(saved).some((key) => RATE_KEYS.has(key))) return;
+    // The server works out company/national rates; ask again now that the change is stored.
+    try { ctx.setMarket(await api('/api/market')); } catch { /* shown by the connection notice */ }
+  },
+  onRejected(key, why) {
+    refused.set(key, why);
+    renderNotice();
+  },
 });
 let checking = false;
 let flashTimer = 0;
@@ -153,7 +169,8 @@ function bindEffects() {
 
 async function init() {
   onConnectionChange((ok) => {
-    $('conn').textContent = ok ? '' : 'The app has stopped. Close this window and open Dispatch RPM again.';
+    connected = ok;
+    renderNotice();
   });
 
   let state;

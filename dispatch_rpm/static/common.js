@@ -98,30 +98,59 @@ export function syncTiles(container, tiles) {
 
 /**
  * Batches setting changes and saves them shortly after the user stops typing.
- * `onSaved` gets each batch once the server has stored it.
+ * `onSaved` gets each batch once the server has stored it; `onRejected` gets
+ * (key, message) for a value the server refuses, which is then dropped.
+ * Lost connections and server errors are retried after each of `retryDelays`.
  */
-export function createSettingsSaver(onSaved = () => {}, delay = 400) {
+export function createSettingsSaver({
+  onSaved = () => {}, onRejected = () => {}, delay = 400, retryDelays = [1000, 5000, 15000, 30000],
+} = {}) {
   let pending = {};
   let timer = 0;
+  let failures = 0;
+  let inFlight = Promise.resolve();
 
-  async function flush() {
+  /** Save a batch; returns the changes that should be tried again later. */
+  async function save(changes) {
+    try {
+      await api('/api/settings', { method: 'POST', body: changes });
+    } catch (err) {
+      if (!(err.status >= 400 && err.status < 500)) return changes;
+      const keys = Object.keys(changes);
+      if (keys.length === 1) {
+        onRejected(keys[0], err.message);
+        return {};
+      }
+      // The server takes a batch all or nothing; save the keys one by one to keep the good ones.
+      let retry = {};
+      for (const key of keys) retry = { ...retry, ...(await save({ [key]: changes[key] })) };
+      return retry;
+    }
+    onSaved(changes);
+    return {};
+  }
+
+  async function send() {
     clearTimeout(timer);
     const changes = pending;
     pending = {};
     if (!Object.keys(changes).length) return;
-    try {
-      await api('/api/settings', { method: 'POST', body: changes });
-    } catch (err) {
-      // A value the server rejects would fail again and block every later save.
-      if (!(err.status >= 400 && err.status < 500)) pending = { ...changes, ...pending };  // retry with the next change
+    const retry = await save(changes);
+    if (!Object.keys(retry).length) {
+      failures = 0;
       return;
     }
-    onSaved(changes);
+    pending = { ...retry, ...pending };  // anything typed meanwhile is newer
+    if (failures < retryDelays.length) timer = setTimeout(flush, retryDelays[failures++]);
   }
+
+  // One request at a time, so saves reach the server in the order they were made.
+  const flush = () => (inFlight = inFlight.then(send).catch((err) => console.error(err)));
 
   return {
     queue(key, value) {
       pending[key] = value;
+      failures = 0;
       clearTimeout(timer);
       timer = setTimeout(flush, delay);
     },

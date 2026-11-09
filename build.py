@@ -18,5 +18,6 @@ subprocess.run([
     "--noconfirm",
     "--clean",
     "--paths", ".",
+    "--icon", "assets/icon.ico",
     "--add-data", f"dispatch_rpm/static{os.pathsep}dispatch_rpm/static",
 ], check=True)

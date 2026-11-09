@@ -49,19 +49,22 @@ export function el(tag, attrs = {}, ...children) {
   return node;
 }
 
-/** The answer box: icon, title and lines; it settles in once each time the verdict changes. */
+/**
+ * The answer box: icon, title and lines; it settles in once each time the verdict changes.
+ * `kind` is a verdict, '' for a plain message, or 'pending' while miles are looked up.
+ */
 export function verdictPanel(node) {
   const base = node.className;
   let lastVerdict = null;
   return {
     show(kind, title, ...lines) {
       node.className = `${base} ${kind}`;
-      const heading = kind ? el('h2', {}, el('span', { class: 'v-icon', 'aria-hidden': 'true' }, ICONS[kind]), title)
+      const heading = ICONS[kind] ? el('h2', {}, el('span', { class: 'v-icon', 'aria-hidden': 'true' }, ICONS[kind]), title)
         : el('h2', {}, title);
       node.replaceChildren(heading, ...lines);
       if (kind !== lastVerdict) {
         lastVerdict = kind;
-        if (kind) morph(node);
+        if (ICONS[kind]) morph(node);
       }
     },
     reset() {

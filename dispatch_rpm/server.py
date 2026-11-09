@@ -25,11 +25,11 @@ STATIC_DIR = Path(__file__).resolve().parent / "static"
 
 # Explicit types: on Windows, mimetypes reads the registry and can map .js to
 # text/plain, which browsers refuse to run as a module.
-_TYPES = {".html": "text/html", ".css": "text/css", ".js": "text/javascript"}
+_TYPES = {".html": "text/html", ".css": "text/css", ".js": "text/javascript", ".svg": "image/svg+xml"}
 STATIC_FILES = {
     f"/{name}": (name, _TYPES[Path(name).suffix] + "; charset=utf-8")
     for name in ("index.html", "style.css", "main.js", "common.js", "calc.js", "load.js",
-                 "simple.js", "advanced.js", "rates.js", "fx.js")
+                 "simple.js", "advanced.js", "rates.js", "fx.js", "logo.svg", "logo-mark.svg", "icon.svg")
 }
 STATIC_FILES["/"] = STATIC_FILES["/index.html"]
 

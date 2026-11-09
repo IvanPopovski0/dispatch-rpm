@@ -58,7 +58,7 @@ export function createSimpleView(root, ctx) {
     }
     if (cur.pending || cur.loaded === null) {
       facts.replaceChildren();
-      return show('', 'Finding the miles…');
+      return show('pending', 'Finding the miles…');
     }
     const deadhead = cur.deadhead ?? 0;
     const trip = tripFacts({ loaded: cur.loaded, deadhead, rate: cur.rate });

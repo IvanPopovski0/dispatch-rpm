@@ -14,7 +14,9 @@ export class FakeElement {
   set textContent(text) { this.childNodes = text === '' ? [] : [String(text)]; }
   append(...nodes) { this.childNodes.push(...nodes); }
   replaceChildren(...nodes) { this.childNodes = nodes; }
-  setAttribute() {}
+  setAttribute(name, value) { (this.attributes ??= {})[name] = String(value); }
+  getAttribute(name) { return this.attributes?.[name] ?? null; }
+  animate() { return { finished: Promise.resolve() }; }
   addEventListener() {}
   focus() {}
   blur() {}

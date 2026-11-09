@@ -40,6 +40,7 @@ function mount() {
       view.render();
     },
     status: () => [root.nodes['#a-status'].textContent, root.nodes['#a-status'].className],
+    verdictClass: () => root.nodes['#a-verdict'].className,
   };
 }
 
@@ -68,6 +69,7 @@ test('Advanced: the next load\'s lookup and warnings replace the save message at
   await justSaved(a);
   a.render({ route: null, loaded: null, tripLoading: true });
   assert.equal(a.status()[0], 'Looking up miles…');
+  assert.equal(a.verdictClass(), 'verdict glass pending');
 
   a.render({ estimated: true });
   assert.deepEqual(a.status(), ['Atlanta, GA → Chicago, IL: 716 mi. ESTIMATE, the route server is busy, so double-check.', 'status warn']);

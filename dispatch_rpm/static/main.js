@@ -3,7 +3,7 @@
 
 import { EQUIPMENT, normalizeZip, rpm } from './calc.js';
 import { api, createSettingsSaver, onConnectionChange, trackWindow, watchMarket } from './common.js';
-import { segmented, setEffects, swapViews } from './fx.js';
+import { paintBackdrop, segmented, setEffects, swapViews, toolbarEdge } from './fx.js';
 import { createAdvancedView } from './advanced.js';
 import { createLoad } from './load.js';
 import { annotate, createRatesSheet } from './rates.js';
@@ -168,6 +168,8 @@ function bindEffects() {
 }
 
 async function init() {
+  paintBackdrop($('backdrop'));
+  toolbarEdge(document.querySelector('.topbar'));
   onConnectionChange((ok) => {
     connected = ok;
     renderNotice();

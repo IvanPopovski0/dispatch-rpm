@@ -63,7 +63,8 @@ class ServerTest(unittest.TestCase):
     def test_static_files(self):
         for path, kind in (("/", "text/html"), ("/index.html", "text/html"), ("/style.css", "text/css"),
                            *((f"/{n}.js", "text/javascript") for n in
-                             ("main", "common", "calc", "load", "simple", "advanced", "rates", "fx"))):
+                             ("main", "common", "calc", "load", "simple", "advanced", "rates", "fx")),
+                           *((f"/{n}.svg", "image/svg+xml") for n in ("logo", "logo-mark", "icon"))):
             with self.subTest(path=path):
                 status, headers, body = self.request("GET", path)
                 self.assertEqual(status, 200)

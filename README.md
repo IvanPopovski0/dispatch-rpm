@@ -1,3 +1,10 @@
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="docs/logo-dark.svg">
+    <img src="docs/logo-light.svg" alt="Dispatch RPM" width="300">
+  </picture>
+</p>
+
 # Dispatch RPM
 
 A desktop tool for quoting truckloads. Enter the truck's location, pickup and delivery ZIP codes, and the broker's offer to see the mileage, rate per mile, and whether the load is worth taking.
@@ -22,6 +29,19 @@ Dispatch RPM has two modes:
 Both modes share the same load information, so you can switch between them without starting over.
 
 Other features include automatic ZIP-to-ZIP mileage, company rates, and national rate references. Quotes and settings are stored locally.
+
+## Design
+
+Frosted navy glass in one palette: navy `#071B2B`, teal `#167D8D`, aqua `#B9E4E8` and light grey `#EEEEEE`. The backdrop is drawn once by a shader (soft
+pools of light, an etched frost texture and fine grain) and then left alone, so nothing moves
+behind the glass. Color outside the palette is kept for the answer, which gets its own gradient
+and icon per verdict.
+
+Motion follows Apple's cues: numbers roll digit by digit when they change, the verdict icon pops
+in, segmented controls spring, the toolbar turns denser as content scrolls under it, and a soft
+shimmer shows while miles load. Anything that animates continuously moves by transform or
+opacity only. **Motion on/off** in the footer turns animation off, and the system's reduce-motion
+setting is respected.
 
 ## Getting started
 

@@ -31,6 +31,7 @@ function mount() {
     title: () => nodes['#s-answer'].childNodes[0].textContent,
     answer: () => nodes['#s-answer'].textContent,
     facts: () => nodes['#s-facts'].children.map((t) => t.textContent),
+    panel: () => nodes['#s-answer'],
   };
 }
 
@@ -42,6 +43,8 @@ test('Simple: previous trip facts clear while new miles are looked up', () => {
 
   view.render({ zips: { truck: null, pickup: '30318', dropoff: '37203' }, loaded: null, pending: true });
   assert.equal(view.title(), 'Finding the miles…');
+  assert.equal(view.panel().className, 'answer glass pending');  // the loading shimmer, with no verdict icon
+  assert.equal(view.panel().childNodes[0].children.length, 0);
   assert.deepEqual(view.facts(), []);
 });
 

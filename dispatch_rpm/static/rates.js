@@ -110,7 +110,7 @@ export function createRatesSheet(ctx) {
       input.classList.toggle('invalid', !ok);
       if (!ok) return;
       ctx.setSetting(`company_${input.dataset.company}`, v === '' ? '' : String(parseNumber(v)));
-      ctx.setSetting('company_date', new Date().toLocaleDateString('en-CA'));
+      ctx.setSetting(`company_${input.dataset.company}_date`, new Date().toLocaleDateString('en-CA'));
     });
   }
   $('#company-by').addEventListener('input', (e) => ctx.setSetting('company_by', e.target.value));
@@ -211,7 +211,8 @@ export function createRatesSheet(ctx) {
       $('#company-diesel').setAttribute('aria-checked', String(ctx.settings.company_diesel === '1'));
       const missing = Object.keys(EQUIPMENT).filter((eq) => !ctx.settings[`company_${eq}`]);
       const parts = [];
-      if (ctx.settings.company_date) parts.push(`Last changed ${shortDate(ctx.settings.company_date)}.`);
+      const changed = Object.keys(EQUIPMENT).map((eq) => ctx.settings[`company_${eq}_date`] || '').sort().pop();
+      if (changed) parts.push(`Last changed ${shortDate(changed)}.`);
       if (missing.length) parts.push(`No company rate for ${missing.map((e) => EQUIPMENT[e].name.toLowerCase()).join(', ')}, so the national average is used there.`);
       const now = Object.keys(EQUIPMENT).map((eq) => m.active[eq] && m.active[eq].source === 'company'
         ? `${EQUIPMENT[eq].name} ${rpm(m.active[eq].value)}` : null).filter(Boolean);

@@ -311,7 +311,7 @@ class StoreTest(unittest.TestCase):
             set_manual(self.db, "van", 0.2)
 
         self.db.update_settings({"rate_mode": "company", "company_van": "3.40",
-                                 "company_date": date.today().isoformat(), "company_by": "Mira"})
+                                 "company_van_date": date.today().isoformat(), "company_by": "Mira"})
         m = resolve(self.db)
         self.assertEqual((m["active"]["van"]["value"], m["active"]["van"]["source"]), (3.40, "company"))
         self.assertTrue(m["active"]["reefer"]["fallback"], "no company reefer rate -> national")
@@ -319,10 +319,50 @@ class StoreTest(unittest.TestCase):
 
     def test_company_follows_diesel(self):
         self.db.put_diesel([("2026-10-26", 3.72), ("2026-11-09", 3.90)])
-        self.db.update_settings({"rate_mode": "company", "company_van": "3.00", "company_date": "2026-10-30"})
+        self.db.update_settings({"rate_mode": "company", "company_van": "3.00", "company_van_date": "2026-10-30"})
         self.assertEqual(resolve(self.db)["active"]["van"]["value"], 3.03)
         self.db.update_settings({"company_diesel": "0"})
         self.assertEqual(resolve(self.db)["active"]["van"]["value"], 3.00)
+
+    def test_editing_one_company_rate_leaves_the_others_alone(self):
+        self.db.put_diesel([("2026-10-26", 3.72), ("2026-11-02", 3.84), ("2026-11-09", 3.90)])
+        self.db.update_settings({"rate_mode": "company", "company_van": "3.00", "company_van_date": "2026-10-30",
+                                 "company_flatbed": "3.50", "company_flatbed_date": "2026-11-02"})
+        before = resolve(self.db)["active"]
+        self.assertEqual((before["van"]["value"], before["flatbed"]["value"]), (3.03, 3.51))
+
+        # The reefer rate is typed on Nov 9; diesel hasn't moved since, and the others keep their own dates.
+        self.db.update_settings({"company_reefer": "3.60", "company_reefer_date": "2026-11-09"})
+        after = resolve(self.db)["active"]
+        self.assertEqual((after["reefer"]["value"], after["reefer"]["as_of"]), (3.60, "2026-11-09"))
+        for eq in ("van", "flatbed"):
+            with self.subTest(eq=eq):
+                self.assertEqual({k: after[eq][k] for k in ("value", "fuel_change", "as_of")},
+                                 {k: before[eq][k] for k in ("value", "fuel_change", "as_of")})
+
+        self.db.update_settings({"company_diesel": "0"})
+        self.assertEqual([resolve(self.db)["active"][eq]["value"] for eq in ("van", "reefer", "flatbed")],
+                         [3.00, 3.60, 3.50])
+
+    def test_migrated_company_rates_keep_their_diesel_adjustment(self):
+        import sqlite3
+        path = Path(self.tmp.name) / "old.db"
+        con = sqlite3.connect(path)
+        con.execute("CREATE TABLE settings (key TEXT PRIMARY KEY, value TEXT NOT NULL)")
+        con.executemany("INSERT INTO settings VALUES (?, ?)", [
+            ("rate_mode", "company"), ("company_van", "3.00"), ("company_reefer", "3.60"),
+            ("company_date", "2026-10-30")])
+        con.commit()
+        con.close()
+        db = Storage(path)
+        try:
+            db.put_diesel([("2026-10-26", 3.72), ("2026-11-09", 3.90)])
+            active = resolve(db)["active"]
+            # what 2.1 showed: both adjusted from the shared Oct 30
+            self.assertEqual((active["van"]["value"], active["reefer"]["value"]), (3.03, 3.63))
+            self.assertEqual(active["van"]["as_of"], "2026-10-30")
+        finally:
+            db.close()
 
     def test_status_timestamps(self):
         u, _ = self.updater({"feed": FEED, "diesel": DIESEL})

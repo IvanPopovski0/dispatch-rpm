@@ -31,9 +31,9 @@ class StorageTest(unittest.TestCase):
 
     def test_new_setting_rules(self):
         self.db.update_settings({"ui_mode": "advanced", "rate_mode": "company", "company_van": "3.25",
-                                 "company_date": "2026-11-09", "company_by": "Mira", "effects": "off"})
+                                 "company_van_date": "2026-11-09", "company_by": "Mira", "effects": "off"})
         for bad in ({"ui_mode": "expert"}, {"company_van": "abc"}, {"company_van": "0.1"},
-                    {"company_date": "Nov 9"}, {"rate_mode": "x"}):
+                    {"company_reefer_date": "Nov 9"}, {"company_date": "2026-11-09"}, {"rate_mode": "x"}):
             with self.subTest(bad=bad), self.assertRaises(ValueError):
                 self.db.update_settings(bad)
         self.db.update_settings({"company_van": ""})  # clearing is fine
@@ -61,6 +61,59 @@ class StorageTest(unittest.TestCase):
             self.assertEqual(sorted((o["equipment"], o["value"]) for o in manual),
                              [("flatbed", 3.6), ("reefer", 3.7), ("van", 3.15)])
             self.assertEqual(db.settings()["target"], "2.80")
+        finally:
+            db.close()
+
+    def old_company_db(self, rows):
+        """A settings table as 2.1 left it, with one company_date for every company rate."""
+        import sqlite3
+        path = Path(self.tmp.name) / "company.db"
+        con = sqlite3.connect(path)
+        con.execute("CREATE TABLE settings (key TEXT PRIMARY KEY, value TEXT NOT NULL)")
+        con.executemany("INSERT INTO settings VALUES (?, ?)", rows)
+        con.commit()
+        con.close()
+        return path
+
+    def test_migrates_shared_company_date_to_each_saved_rate(self):
+        path = self.old_company_db([
+            ("rate_mode", "company"), ("company_van", "3.00"), ("company_reefer", "3.60"),
+            ("company_flatbed", ""), ("company_by", "Mira"), ("company_date", "2026-10-30")])
+        db = Storage(path)
+        try:
+            s = db.settings()
+            self.assertEqual((s["company_van"], s["company_reefer"], s["company_flatbed"]), ("3.00", "3.60", ""))
+            self.assertEqual((s["company_van_date"], s["company_reefer_date"], s["company_flatbed_date"]),
+                             ("2026-10-30", "2026-10-30", ""))
+            self.assertNotIn("company_date", s)
+            db.update_settings({"company_reefer": "3.70", "company_reefer_date": "2026-11-09"})
+        finally:
+            db.close()
+
+        # Opening again doesn't redo it or undo later edits.
+        db = Storage(path)
+        try:
+            s = db.settings()
+            self.assertEqual((s["company_van_date"], s["company_reefer_date"]), ("2026-10-30", "2026-11-09"))
+            self.assertEqual(s["company_reefer"], "3.70")
+        finally:
+            db.close()
+
+    def test_migration_keeps_per_type_dates_already_there(self):
+        path = self.old_company_db([("company_van", "3.00"), ("company_date", "2026-10-30"),
+                                    ("company_van_date", "2026-11-02")])
+        db = Storage(path)
+        try:
+            self.assertEqual(db.settings()["company_van_date"], "2026-11-02")
+        finally:
+            db.close()
+
+    def test_migration_without_a_shared_date(self):
+        path = self.old_company_db([("company_van", "3.00"), ("company_date", "")])
+        db = Storage(path)
+        try:
+            self.assertEqual(db.settings()["company_van_date"], "")
+            self.assertEqual(db.settings()["company_van"], "3.00")
         finally:
             db.close()
 

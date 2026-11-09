@@ -297,16 +297,16 @@ def resolve(storage: Storage) -> dict:
     auto = {eq: resolve_equipment([o for o in obs if o["equipment"] == eq], diesel) for eq in EQUIPMENT}
 
     company = {}
-    company_date = settings["company_date"]
     follow = settings["company_diesel"] == "1"
     for eq in EQUIPMENT:
         raw = settings[f"company_{eq}"]
         if not raw:
             company[eq] = None
             continue
-        change = diesel_change(diesel, company_date) if follow else 0.0
+        set_on = settings[f"company_{eq}_date"]
+        change = diesel_change(diesel, set_on) if follow else 0.0
         company[eq] = {"value": round(float(raw) + change, 2), "base": float(raw),
-                       "fuel_change": round(change, 3), "as_of": company_date,
+                       "fuel_change": round(change, 3), "as_of": set_on,
                        "source": "company", "method": "company"}
 
     mode = settings["rate_mode"]
@@ -322,7 +322,7 @@ def resolve(storage: Storage) -> dict:
         "mode": mode,
         "active": active,
         "auto": auto,
-        "company": {"rates": company, "by": settings["company_by"], "date": company_date, "diesel": follow},
+        "company": {"rates": company, "by": settings["company_by"], "diesel": follow},
         "diesel": {"price": diesel[-1][1], "week": diesel[-1][0]} if diesel else None,
         "sources": [{"key": key, **statuses.get(key, {"ok": None, "checked": None, "message": ""})}
                     for key in ("dat", "diesel", "teamfile")],

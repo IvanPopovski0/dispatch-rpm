@@ -11,7 +11,7 @@ import { createSimpleView } from './simple.js';
 
 const $ = (id) => document.getElementById(id);
 const RATE_KEYS = new Set(['rate_mode', 'company_van', 'company_reefer', 'company_flatbed',
-  'company_by', 'company_date', 'company_diesel']);
+  'company_by', 'company_van_date', 'company_reefer_date', 'company_flatbed_date', 'company_diesel']);
 
 const saver = createSettingsSaver(async (saved) => {
   if (!Object.keys(saved).some((key) => RATE_KEYS.has(key))) return;

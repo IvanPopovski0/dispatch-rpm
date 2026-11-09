@@ -26,7 +26,9 @@ DEFAULT_SETTINGS = {
     "company_reefer": "",
     "company_flatbed": "",
     "company_by": "",
-    "company_date": "",
+    "company_van_date": "",     # the day each company rate was set; diesel moves it from there
+    "company_reefer_date": "",
+    "company_flatbed_date": "",
     "company_diesel": "1",      # 1 = adjust company rates for diesel each week
 }
 
@@ -125,10 +127,10 @@ def _check_setting(key: str, value) -> None:
         raise ValueError(f"bad value for {key}")
     if key in _CHOICES and value not in _CHOICES[key]:
         raise ValueError(f"bad value for {key}: {value}")
-    if key == "company_date" and value and not (len(value) == 10 and value[4] == "-" and value[7] == "-"
-                                                 and value.replace("-", "").isascii()
-                                                 and value.replace("-", "").isdigit()):
-        raise ValueError("company_date must be YYYY-MM-DD")
+    if key.endswith("_date") and value and not (len(value) == 10 and value[4] == "-" and value[7] == "-"
+                                                and value.replace("-", "").isascii()
+                                                and value.replace("-", "").isdigit()):
+        raise ValueError(f"{key} must be YYYY-MM-DD")
     if key == "truck_zip" and value and not (len(value) == 5 and value.isascii() and value.isdigit()):
         raise ValueError("truck ZIP must be 5 digits")
     if key.startswith("company_") and key[8:] in EQUIPMENT and value:
@@ -169,6 +171,14 @@ class Storage:
                                      (eq, value, old["market_date"], "carried over from an earlier version"))
             self._db.execute("DELETE FROM settings WHERE key LIKE 'market_%' OR key IN "
                              "('fuel_adjust', 'diesel_price', 'diesel_week')")
+            # Up to 2.1 one company_date covered all three company rates. Give each saved rate that
+            # date, so every adjusted rate stays what it was, then drop the shared one.
+            old = dict(self._db.execute("SELECT key, value FROM settings WHERE key LIKE 'company_%'").fetchall())
+            if "company_date" in old:
+                self._db.executemany("INSERT OR IGNORE INTO settings (key, value) VALUES (?, ?)",
+                                     [(f"company_{eq}_date", old["company_date"])
+                                      for eq in EQUIPMENT if old.get(f"company_{eq}")])
+                self._db.execute("DELETE FROM settings WHERE key = 'company_date'")
 
     def close(self) -> None:
         with self._lock:

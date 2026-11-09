@@ -1,7 +1,7 @@
 // App shell: loads state, owns the shared load and settings, switches between
 // Simple and Advanced, and keeps the rate chip and Rates sheet in step.
 
-import { normalizeZip, rpm } from './calc.js';
+import { EQUIPMENT, normalizeZip, rpm } from './calc.js';
 import { api, createSettingsSaver, onConnectionChange, trackWindow, watchMarket } from './common.js';
 import { segmented, setEffects, swapViews } from './fx.js';
 import { createAdvancedView } from './advanced.js';
@@ -12,10 +12,12 @@ import { createSimpleView } from './simple.js';
 const $ = (id) => document.getElementById(id);
 const RATE_KEYS = new Set(['rate_mode', 'company_van', 'company_reefer', 'company_flatbed',
   'company_by', 'company_date', 'company_diesel']);
-const SHORT = { van: 'Van', reefer: 'Reefer', flatbed: 'Flatbed' };
 
-const saver = createSettingsSaver();
-let marketTimer = 0;
+const saver = createSettingsSaver(async (saved) => {
+  if (!Object.keys(saved).some((key) => RATE_KEYS.has(key))) return;
+  // The server works out company/national rates; ask again now that the change is stored.
+  try { ctx.setMarket(await api('/api/market')); } catch { /* shown by the connection notice */ }
+});
 let checking = false;
 let flashTimer = 0;
 
@@ -38,13 +40,6 @@ const ctx = {
   setSetting(key, value, rerender = true) {
     ctx.settings[key] = value;
     saver.queue(key, value);
-    if (RATE_KEYS.has(key)) {
-      // The server works out company/national rates; ask again once the save has landed.
-      clearTimeout(marketTimer);
-      marketTimer = setTimeout(async () => {
-        try { ctx.setMarket(await api('/api/market')); } catch { /* shown by the connection notice */ }
-      }, 700);
-    }
     if (rerender) render();
   },
 
@@ -111,7 +106,7 @@ function renderChip() {
   if (r) {
     const b = document.createElement('b');
     b.textContent = rpm(r.value);
-    label.append(b, ` ${SHORT[eq]}${r.source === 'company' ? ' · company' : ''}`);
+    label.append(b, ` ${EQUIPMENT[eq].short}${r.source === 'company' ? ' · company' : ''}`);
   } else {
     label.textContent = 'Rates';
   }

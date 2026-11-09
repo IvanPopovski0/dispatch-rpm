@@ -45,8 +45,6 @@ class Lookup {
   }
 }
 
-export const FIELDS = ['truck', 'pickup', 'dropoff', 'rate', 'loaded', 'deadhead'];
-
 export function createLoad(onChange) {
   const values = { truck: '', pickup: '', dropoff: '', rate: '', loaded: '', deadhead: '' };
   const places = { truck: new Lookup(onChange), pickup: new Lookup(onChange), dropoff: new Lookup(onChange) };
@@ -76,10 +74,6 @@ export function createLoad(onChange) {
 
   return {
     values,
-    places,
-    trip,
-    empty,
-    zips,
 
     set(field, text) {
       values[field] = text;
@@ -101,6 +95,7 @@ export function createLoad(onChange) {
       if (empty.key) deadheadAuto = empty.state.status === 'ok' ? empty.state.data.miles : null;
       return {
         zips: z,
+        places: Object.fromEntries(Object.entries(places).map(([field, lookup]) => [field, lookup.state])),
         rate: parseNumber(values.rate),
         loaded: typed('loaded') ? parseNumber(values.loaded) : loadedAuto,
         loadedAuto,
@@ -108,6 +103,8 @@ export function createLoad(onChange) {
         deadhead: typed('deadhead') ? parseNumber(values.deadhead) : deadheadAuto,
         deadheadAuto,
         deadheadTyped: typed('deadhead'),
+        emptyLookup: Boolean(empty.key),
+        tripLoading: trip.state.status === 'loading',
         pending: trip.state.status === 'loading' || (empty.key && empty.state.status === 'loading'),
         tripError: trip.state.status === 'error' ? trip.state.error : null,
         emptyError: empty.key && empty.state.status === 'error' ? empty.state.error : null,

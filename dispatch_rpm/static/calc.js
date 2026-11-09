@@ -66,6 +66,13 @@ export function evaluate({ loaded, deadhead = 0, rate, target, floor, market = n
   };
 }
 
+// Truck types in display order, with the words the screens use for them.
+export const EQUIPMENT = {
+  van: { name: 'Dry van', short: 'Van', plural: 'dry vans' },
+  reefer: { name: 'Reefer', short: 'Reefer', plural: 'reefers' },
+  flatbed: { name: 'Flatbed', short: 'Flatbed', plural: 'flatbeds' },
+};
+
 // The simple version has no settings: the market average is the target.
 export const SIMPLE = {
   walkAwayShare: 0.85,  // pass on anything under 85% of the average

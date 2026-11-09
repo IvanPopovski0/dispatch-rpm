@@ -1,21 +1,18 @@
 // Simple mode: five plain questions, one plain answer with the words to say.
 
-import { driveTime, implausibleOffer, money, normalizeZip, parseNumber, rpm, simpleAdvice } from './calc.js';
-import { el } from './common.js';
-import { morph, setText } from './fx.js';
+import {
+  EQUIPMENT, SIMPLE, driveTime, implausibleOffer, money, normalizeZip, parseNumber, rpm, simpleAdvice,
+} from './calc.js';
+import { el, syncTiles, tile, typoHint, verdictPanel } from './common.js';
 import { rateSource } from './rates.js';
 
 const ORDER = ['truck', 'pickup', 'dropoff', 'rate'];
-const TRUCK_NAMES = { van: 'dry vans', reefer: 'reefers', flatbed: 'flatbeds' };
-const ICONS = { book: '✓', negotiate: '↑', drop: '✕', check: '!' };
-
 
 export function createSimpleView(root, ctx) {
   const $ = (sel) => root.querySelector(sel);
   const inputs = Object.fromEntries(ORDER.map((f) => [f, $(`[data-field="${f}"]`)]));
-  const answer = $('#s-answer');
+  const { show, reset } = verdictPanel($('#s-answer'));
   const facts = $('#s-facts');
-  let lastVerdict = null;
 
   for (const [field, input] of Object.entries(inputs)) {
     input.addEventListener('input', () => ctx.edit(field, input.value));
@@ -28,11 +25,11 @@ export function createSimpleView(root, ctx) {
     node.className = `found ${kind}`;
   }
 
-  function renderFound() {
+  function renderFound(cur) {
     const { load } = ctx;
     for (const field of ['truck', 'pickup', 'dropoff']) {
       const text = load.values[field].trim();
-      const s = load.places[field].state;
+      const s = cur.places[field];
       inputs[field].classList.toggle('invalid', text !== '' && !normalizeZip(text));
       if (text === '') setFound(field, field === 'truck' ? 'Leave empty if the truck is already at the pickup.' : '', 'dim');
       else if (!normalizeZip(text)) setFound(field, 'A ZIP code is 5 numbers, like 30318.', 'error');
@@ -46,24 +43,7 @@ export function createSimpleView(root, ctx) {
     setFound('rate', badRate ? 'Type just the number, like 2000.' : '', 'error');
   }
 
-  function show(kind, title, ...lines) {
-    const changed = kind !== lastVerdict;
-    answer.className = `answer glass ${kind}`;
-    const heading = kind ? el('h2', {}, el('span', { class: 'v-icon', 'aria-hidden': 'true' }, ICONS[kind]), title)
-      : el('h2', {}, title);
-    answer.replaceChildren(heading, ...lines);
-    if (changed) {
-      lastVerdict = kind;
-      if (kind) morph(answer);
-    }
-  }
-
-  function tile(value, label) {
-    return el('div', { class: 'tile' }, el('b', {}, value), el('span', {}, label));
-  }
-
-  function renderAnswer() {
-    const cur = ctx.load.current();
+  function renderAnswer(cur) {
     const eq = ctx.settings.equipment;
     const ref = ctx.market?.active?.[eq];
     const market = ref?.value ?? null;
@@ -81,11 +61,11 @@ export function createSimpleView(root, ctx) {
     }
     const deadhead = cur.deadhead ?? 0;
     const total = cur.loaded + deadhead;
-    const dayCount = Math.max(1, Math.ceil(total / 55 / 11));
+    const dayCount = Math.max(1, Math.ceil(total / SIMPLE.mph / SIMPLE.driveHoursPerDay));
     const factTiles = [
       tile(`${Math.round(total).toLocaleString('en-US')} mi`, `${Math.round(cur.loaded)} loaded + ${Math.round(deadhead)} empty`),
       tile(cur.rate > 0 ? `${rpm(cur.rate / total)}/mi` : '—', 'pays per mile, all miles'),
-      tile(driveTime(total, 55), `driving, about ${dayCount} day${dayCount > 1 ? 's' : ''}`),
+      tile(driveTime(total, SIMPLE.mph), `driving, about ${dayCount} day${dayCount > 1 ? 's' : ''}`),
     ];
     syncTiles(facts, factTiles);
 
@@ -96,7 +76,7 @@ export function createSimpleView(root, ctx) {
     if (typo) {
       return show('check', 'Check the offer',
         el('p', { class: 'say' }, `That’s ${rpm(typo.perMile)} a mile, ${Math.round(typo.times)}× the average.`),
-        el('p', {}, typo.suggestion ? `Did you mean ${money(typo.suggestion, typo.suggestion % 1 !== 0)}?` : 'Make sure the number is right before you book.'));
+        typoHint(typo));
     }
     const a = simpleAdvice({ loaded: cur.loaded, deadhead, rate: cur.rate, market });
     const offer = money(cur.rate, cur.rate % 1 !== 0);
@@ -109,7 +89,7 @@ export function createSimpleView(root, ctx) {
     if (a.verdict === 'book') {
       show('book', 'Take it',
         el('p', { class: 'say' }, 'Say: “Sounds good, let’s book it.”'),
-        el('p', {}, `Pays ${rpm(a.allIn)} a mile, against ${rpm(market)} for ${TRUCK_NAMES[eq]}.`), ...extra);
+        el('p', {}, `Pays ${rpm(a.allIn)} a mile, against ${rpm(market)} for ${EQUIPMENT[eq].plural}.`), ...extra);
     } else if (a.verdict === 'negotiate') {
       show('negotiate', 'Ask for more',
         el('p', { class: 'say' }, 'Say: “I can do it for ', amount(a.ask), '.”'),
@@ -129,18 +109,19 @@ export function createSimpleView(root, ctx) {
       note.textContent = '';
       return;
     }
-    note.replaceChildren(`Measured against ${rpm(ref.value)}/mi for ${TRUCK_NAMES[eq]}: ${rateSource(ref, ctx.market)}.`);
+    note.replaceChildren(`Measured against ${rpm(ref.value)}/mi for ${EQUIPMENT[eq].plural}: ${rateSource(ref, ctx.market)}.`);
     if (ref.stale) note.append(' ', el('span', { class: 'warn' }, 'This rate may be out of date.'));
   }
 
   return {
     show() {
       for (const [field, input] of Object.entries(inputs)) input.value = ctx.load.values[field];
-      lastVerdict = null;
+      reset();
     },
     render() {
-      renderFound();
-      renderAnswer();
+      const cur = ctx.load.current();
+      renderFound(cur);
+      renderAnswer(cur);
       renderNote();
     },
     focusFirst() {
@@ -153,19 +134,4 @@ export function createSimpleView(root, ctx) {
       if (next) inputs[next].focus(); else target.blur();
     },
   };
-}
-
-/** Update tiles in place so values animate instead of the whole row flashing. */
-export function syncTiles(container, tiles) {
-  const old = [...container.children];
-  if (old.length !== tiles.length) {
-    container.replaceChildren(...tiles);
-    return;
-  }
-  tiles.forEach((t, i) => {
-    const [b, span] = old[i].children;
-    setText(b, t.children[0].textContent);
-    span.replaceChildren(...t.children[1].childNodes);
-    old[i].className = t.className;
-  });
 }

@@ -1,5 +1,10 @@
-// Shared by the full and simple screens: server calls, settings saving,
-// DOM helper and the "window is open/closed" signals.
+// Shared by the Simple and Advanced screens: server calls, settings saving,
+// DOM helpers and the "window is open/closed" signals.
+
+import { money } from './calc.js';
+import { morph, setText } from './fx.js';
+
+const ICONS = { book: '✓', negotiate: '↑', drop: '✕', check: '!' };
 
 export const clientId = crypto.randomUUID?.() ?? `${Date.now()}-${Math.random().toString(36).slice(2)}`;
 
@@ -26,7 +31,11 @@ export async function api(path, { method = 'GET', body, signal } = {}) {
   }
   connectionListener(true);
   const data = await res.json().catch(() => ({}));
-  if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
+  if (!res.ok) {
+    const err = new Error(data.error || `HTTP ${res.status}`);
+    err.status = res.status;
+    throw err;
+  }
   return data;
 }
 
@@ -40,8 +49,58 @@ export function el(tag, attrs = {}, ...children) {
   return node;
 }
 
-/** Batches setting changes and saves them shortly after the user stops typing. */
-export function createSettingsSaver(delay = 400) {
+/** The answer box: icon, title and lines; it settles in once each time the verdict changes. */
+export function verdictPanel(node) {
+  const base = node.className;
+  let lastVerdict = null;
+  return {
+    show(kind, title, ...lines) {
+      node.className = `${base} ${kind}`;
+      const heading = kind ? el('h2', {}, el('span', { class: 'v-icon', 'aria-hidden': 'true' }, ICONS[kind]), title)
+        : el('h2', {}, title);
+      node.replaceChildren(heading, ...lines);
+      if (kind !== lastVerdict) {
+        lastVerdict = kind;
+        if (kind) morph(node);
+      }
+    },
+    reset() {
+      lastVerdict = null;
+    },
+  };
+}
+
+/** The line under "Check the offer": the number they probably meant, if there is one. */
+export function typoHint(typo) {
+  return el('p', {}, typo.suggestion
+    ? `Did you mean ${money(typo.suggestion, typo.suggestion % 1 !== 0)}?`
+    : 'Make sure the number is right before you book.');
+}
+
+export function tile(value, label, cls = 'tile') {
+  return el('div', { class: cls }, el('b', {}, value), el('span', {}, label));
+}
+
+/** Update tiles in place so values animate instead of the whole row flashing. */
+export function syncTiles(container, tiles) {
+  const old = [...container.children];
+  if (old.length !== tiles.length) {
+    container.replaceChildren(...tiles);
+    return;
+  }
+  tiles.forEach((t, i) => {
+    const [b, span] = old[i].children;
+    setText(b, t.children[0].textContent);
+    span.replaceChildren(...t.children[1].childNodes);
+    old[i].className = t.className;
+  });
+}
+
+/**
+ * Batches setting changes and saves them shortly after the user stops typing.
+ * `onSaved` gets each batch once the server has stored it.
+ */
+export function createSettingsSaver(onSaved = () => {}, delay = 400) {
   let pending = {};
   let timer = 0;
 
@@ -52,9 +111,12 @@ export function createSettingsSaver(delay = 400) {
     if (!Object.keys(changes).length) return;
     try {
       await api('/api/settings', { method: 'POST', body: changes });
-    } catch {
-      pending = { ...changes, ...pending };  // retry with the next change
+    } catch (err) {
+      // A value the server rejects would fail again and block every later save.
+      if (!(err.status >= 400 && err.status < 500)) pending = { ...changes, ...pending };  // retry with the next change
+      return;
     }
+    onSaved(changes);
   }
 
   return {

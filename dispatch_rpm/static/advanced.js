@@ -1,25 +1,22 @@
 // Advanced mode: every number, your own targets, saved quotes and averages.
 
 import {
-  averageRpm, driveTime, evaluate, implausibleOffer, laneKey, money, normalizeZip, parseNumber, periodAverages, rpm,
+  EQUIPMENT, averageRpm, driveTime, evaluate, implausibleOffer, laneKey, money, normalizeZip, parseNumber, periodAverages, rpm,
 } from './calc.js';
-import { api, el } from './common.js';
-import { morph } from './fx.js';
+import { api, el, syncTiles, tile, typoHint, verdictPanel } from './common.js';
 import { rateSource } from './rates.js';
-import { syncTiles } from './simple.js';
 
-const EQUIPMENT_NAMES = { van: 'Dry van', reefer: 'Reefer', flatbed: 'Flatbed' };
 const NUMERIC_SETTINGS = ['target', 'floor', 'speed'];
 const MAX_HISTORY_ROWS = 300;
-const ICONS = { book: '✓', negotiate: '↑', drop: '✕', check: '!' };
 
+const laneName = (q) => `${q.pickup_name ?? q.pickup} → ${q.dropoff_name ?? q.dropoff}`;
+const quoteRpm = (q) => q.rate / (q.loaded + q.deadhead);
 
 export function createAdvancedView(root, ctx) {
   const $ = (sel) => root.querySelector(sel);
   const inputs = Object.fromEntries(
     ['truck', 'pickup', 'dropoff', 'loaded', 'deadhead', 'rate'].map((f) => [f, $(`[data-field="${f}"]`)]));
-  const verdict = $('#a-verdict');
-  let lastVerdict = null;
+  const { show, reset } = verdictPanel($('#a-verdict'));
   let saving = false;
 
   for (const [field, input] of Object.entries(inputs)) {
@@ -31,7 +28,6 @@ export function createAdvancedView(root, ctx) {
   $('#a-save').addEventListener('click', save);
   $('#a-clear').addEventListener('click', () => ctx.clearLoad());
 
-  const tile = (value, label, cls = 'tile') => el('div', { class: cls }, el('b', {}, value), el('span', {}, label));
   const miles = (n) => `${Math.round(n).toLocaleString('en-US')} mi`;
 
   function setStatus(text, kind = '') {
@@ -51,7 +47,7 @@ export function createAdvancedView(root, ctx) {
       bad(input, parseNumber(input.value) !== null);
     }
     inputs.loaded.placeholder = cur.loadedAuto !== null ? `${cur.loadedAuto} (auto)` : 'auto';
-    inputs.deadhead.placeholder = ctx.load.empty.key
+    inputs.deadhead.placeholder = cur.emptyLookup
       ? (cur.deadheadAuto !== null ? `${cur.deadheadAuto} (auto)` : '…')
       : '0';
 
@@ -65,34 +61,20 @@ export function createAdvancedView(root, ctx) {
 
   function renderStatus(cur) {
     if (ctx.flash) return; // a save message is showing
-    const { load } = ctx;
     if (!cur.zips.pickup || !cur.zips.dropoff) return setStatus('');
     if (cur.tripError) return setStatus(`${cur.tripError}. Type the miles in.`, 'error');
-    if (load.trip.state.status === 'loading') return setStatus('Looking up miles…');
+    if (cur.tripLoading) return setStatus('Looking up miles…');
     const r = cur.route;
     if (!r) return setStatus('');
     let text = `${r.pickup} → ${r.dropoff}: ${miles(r.miles)}`;
     if (cur.loadedTyped) text += ` (using your ${miles(cur.loaded ?? 0)})`;
-    if (load.empty.key && load.empty.state.status === 'ok') {
-      text += ` · truck to pickup ${miles(load.empty.state.data.miles)}`;
-    }
+    if (cur.emptyLookup && cur.deadheadAuto !== null) text += ` · truck to pickup ${miles(cur.deadheadAuto)}`;
     if (cur.estimated) return setStatus(`${text}. ESTIMATE, the route server is busy, so double-check.`, 'warn');
     if (cur.emptyError) return setStatus(`${text}. Couldn't get empty miles: ${cur.emptyError}`, 'warn');
     setStatus(text);
   }
 
   // ------------------------------------------------------------ verdict
-
-  function show(kind, title, ...lines) {
-    verdict.className = `verdict glass ${kind}`;
-    const heading = kind ? el('h2', {}, el('span', { class: 'v-icon', 'aria-hidden': 'true' }, ICONS[kind]), title)
-      : el('h2', {}, title);
-    verdict.replaceChildren(heading, ...lines);
-    if (kind !== lastVerdict) {
-      lastVerdict = kind;
-      if (kind) morph(verdict);
-    }
-  }
 
   function renderVerdict(cur) {
     const s = ctx.settings;
@@ -123,7 +105,7 @@ export function createAdvancedView(root, ctx) {
     if (typo) {
       show('check', 'Check the rate',
         el('p', { class: 'say' }, `${rpm(typo.perMile)} a mile is ${Math.round(typo.times)}× ${market ? 'the market' : 'your target'}.`),
-        el('p', {}, typo.suggestion ? `Did you mean ${money(typo.suggestion, typo.suggestion % 1 !== 0)}?` : 'Make sure the number is right before you book.'));
+        typoHint(typo));
       syncTiles($('#a-stats'), tiles);
       return;
     }
@@ -165,7 +147,7 @@ export function createAdvancedView(root, ctx) {
     const tiles = periodAverages(ctx.quotes, eq).map((p) =>
       tile(p.rpm === null ? '—' : rpm(p.rpm), `${p.label.toLowerCase()} (${p.count})`));
     const ref = ctx.market?.active?.[eq];
-    if (ref) tiles.push(tile(rpm(ref.value), `${EQUIPMENT_NAMES[eq].toLowerCase()} reference`, 'tile accent'));
+    if (ref) tiles.push(tile(rpm(ref.value), `${EQUIPMENT[eq].name.toLowerCase()} reference`, 'tile accent'));
     syncTiles($('#a-averages'), tiles);
   }
 
@@ -202,11 +184,11 @@ export function createAdvancedView(root, ctx) {
       del.addEventListener('click', () => remove(q));
       return el('tr', {},
         el('td', {}, when.format(new Date(q.created * 1000))),
-        el('td', {}, `${q.pickup_name ?? q.pickup} → ${q.dropoff_name ?? q.dropoff}`),
-        el('td', {}, EQUIPMENT_NAMES[q.equipment] ?? q.equipment),
+        el('td', {}, laneName(q)),
+        el('td', {}, EQUIPMENT[q.equipment]?.name ?? q.equipment),
         el('td', { class: 'num' }, `${Math.round(q.loaded)} + ${Math.round(q.deadhead)}`),
         el('td', { class: 'num' }, money(q.rate)),
-        el('td', { class: 'num' }, rpm(q.rate / (q.loaded + q.deadhead))),
+        el('td', { class: 'num' }, rpm(quoteRpm(q))),
         el('td', {}, del));
     });
     box.replaceChildren(el('table', {},
@@ -238,8 +220,7 @@ export function createAdvancedView(root, ctx) {
       });
       ctx.quotes.unshift(q);
       ctx.clearLoad();
-      const allIn = q.rate / (q.loaded + q.deadhead);
-      ctx.flashStatus(() => setStatus(`Saved ${q.pickup_name ?? q.pickup} → ${q.dropoff_name ?? q.dropoff} at ${rpm(allIn)} all-in.`));
+      ctx.flashStatus(() => setStatus(`Saved ${laneName(q)} at ${rpm(quoteRpm(q))} all-in.`));
       renderHistory();
     } catch (err) {
       setStatus(`Couldn't save: ${err.message}`, 'error');
@@ -250,12 +231,11 @@ export function createAdvancedView(root, ctx) {
   }
 
   async function remove(q) {
-    const lane = `${q.pickup_name ?? q.pickup} → ${q.dropoff_name ?? q.dropoff}`;
-    if (!confirm(`Delete the ${money(q.rate, false)} quote for ${lane}?`)) return;
+    if (!confirm(`Delete the ${money(q.rate, false)} quote for ${laneName(q)}?`)) return;
     try {
       await api(`/api/quotes/${q.id}`, { method: 'DELETE' });
     } catch (err) {
-      if (err.message !== 'quote not found') {
+      if (err.status !== 404) {
         alert(`Couldn't delete: ${err.message}`);
         return;
       }
@@ -270,7 +250,7 @@ export function createAdvancedView(root, ctx) {
     show() {
       for (const [field, input] of Object.entries(inputs)) input.value = ctx.load.values[field];
       for (const input of root.querySelectorAll('[data-setting]')) input.value = ctx.settings[input.dataset.setting] ?? '';
-      lastVerdict = null;
+      reset();
       renderHistory();
     },
     render() {

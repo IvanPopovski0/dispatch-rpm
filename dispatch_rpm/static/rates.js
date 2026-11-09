@@ -1,11 +1,10 @@
 // The Rates sheet: where the reference $/mile comes from, and the controls to
 // override it by hand or switch to rates a manager gave you.
 
-import { daysOld, parseNumber, rpm, shortDate } from './calc.js';
+import { EQUIPMENT, daysOld, parseNumber, rpm, shortDate } from './calc.js';
 import { api, el } from './common.js';
 import { segmented, sheetIn, sheetOut } from './fx.js';
 
-const NAMES = { van: 'Dry van', reefer: 'Reefer', flatbed: 'Flatbed' };
 const SOURCE_NAMES = { dat: 'DAT weekly reports', diesel: 'U.S. diesel price (EIA)', teamfile: 'Team rates file' };
 const STALE_DAYS = 14;
 
@@ -55,6 +54,7 @@ export function createRatesSheet(ctx) {
   const $ = (sel) => sheet.querySelector(sel);
   let editing = null;   // equipment being edited by hand
   let lastFocus = null;
+  let checkLabelTimer = 0;
 
   const modeSeg = segmented($('#rate-mode-seg'), (mode) => {
     ctx.setSetting('rate_mode', mode);
@@ -87,16 +87,18 @@ export function createRatesSheet(ctx) {
 
   $('#rates-check').addEventListener('click', async (e) => {
     const btn = e.currentTarget;
+    clearTimeout(checkLabelTimer);
     btn.disabled = true;
     btn.textContent = 'Checking…';
     ctx.setChecking(true);
     try {
       ctx.setMarket(await api('/api/market/refresh', { method: 'POST' }));
+      btn.textContent = 'Check now';
     } catch (err) {
       btn.textContent = err.message;
+      checkLabelTimer = setTimeout(() => { btn.textContent = 'Check now'; }, 4000);
     } finally {
       btn.disabled = false;
-      btn.textContent = 'Check now';
       ctx.setChecking(false);
     }
   });
@@ -134,7 +136,7 @@ export function createRatesSheet(ctx) {
 
   function rateRow(eq) {
     const r = ctx.market?.auto?.[eq];
-    if (!r) return el('div', { class: 'rate-row' }, el('span', { class: 'name' }, NAMES[eq]), el('span', { class: 'value' }, '—'));
+    if (!r) return el('div', { class: 'rate-row' }, el('span', { class: 'name' }, EQUIPMENT[eq].name), el('span', { class: 'value' }, '—'));
     const badge = r.source === 'manual'
       ? el('span', { class: 'badge hand' }, 'Typed in')
       : r.source === 'dat' ? el('span', { class: 'badge live' }, 'Live') : el('span', { class: 'badge' }, 'Saved');
@@ -148,7 +150,7 @@ export function createRatesSheet(ctx) {
 
     const actions = el('div', { class: 'actions' });
     if (editing === eq) {
-      const input = el('input', { inputmode: 'decimal', 'aria-label': `${NAMES[eq]} rate`, value: r.value.toFixed(2) });
+      const input = el('input', { inputmode: 'decimal', 'aria-label': `${EQUIPMENT[eq].name} rate`, value: r.value.toFixed(2) });
       const save = el('button', { type: 'button', class: 'btn btn-gold btn-sm' }, 'Save');
       const cancel = el('button', { type: 'button', class: 'btn btn-ghost btn-sm' }, 'Cancel');
       const submit = () => {
@@ -175,7 +177,7 @@ export function createRatesSheet(ctx) {
       }
     }
     return el('div', { class: 'rate-row' },
-      el('span', { class: 'name' }, NAMES[eq], badge),
+      el('span', { class: 'name' }, EQUIPMENT[eq].name, badge),
       el('span', { class: 'value' }, rpm(r.value)),
       el('span', { class: 'detail' }, detail),
       actions);
@@ -190,7 +192,7 @@ export function createRatesSheet(ctx) {
     $('#rates-company').hidden = mode !== 'company';
 
     if (mode === 'auto') {
-      $('#rate-list').replaceChildren(...['van', 'reefer', 'flatbed'].map(rateRow));
+      $('#rate-list').replaceChildren(...Object.keys(EQUIPMENT).map(rateRow));
       $('#rate-sources').replaceChildren(...m.sources.map((s) => {
         const optional = s.key === 'teamfile' && s.ok === null;
         return el('li', {},
@@ -207,12 +209,12 @@ export function createRatesSheet(ctx) {
       const by = $('#company-by');
       if (document.activeElement !== by) by.value = ctx.settings.company_by || '';
       $('#company-diesel').setAttribute('aria-checked', String(ctx.settings.company_diesel === '1'));
-      const missing = ['van', 'reefer', 'flatbed'].filter((eq) => !ctx.settings[`company_${eq}`]);
+      const missing = Object.keys(EQUIPMENT).filter((eq) => !ctx.settings[`company_${eq}`]);
       const parts = [];
       if (ctx.settings.company_date) parts.push(`Last changed ${shortDate(ctx.settings.company_date)}.`);
-      if (missing.length) parts.push(`No company rate for ${missing.map((e) => NAMES[e].toLowerCase()).join(', ')}, so the national average is used there.`);
-      const now = ['van', 'reefer', 'flatbed'].map((eq) => m.active[eq] && m.active[eq].source === 'company'
-        ? `${NAMES[eq]} ${rpm(m.active[eq].value)}` : null).filter(Boolean);
+      if (missing.length) parts.push(`No company rate for ${missing.map((e) => EQUIPMENT[e].name.toLowerCase()).join(', ')}, so the national average is used there.`);
+      const now = Object.keys(EQUIPMENT).map((eq) => m.active[eq] && m.active[eq].source === 'company'
+        ? `${EQUIPMENT[eq].name} ${rpm(m.active[eq].value)}` : null).filter(Boolean);
       if (now.length && ctx.settings.company_diesel === '1') parts.push(`With diesel today: ${now.join(' · ')}.`);
       $('#company-meta').textContent = parts.join(' ');
     }

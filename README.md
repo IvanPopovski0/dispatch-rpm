@@ -139,7 +139,7 @@ Motion is limited to short, one-time transitions (the toggle sliding, the answer
 
 ```bash
 python -m unittest discover -s tests   # backend tests
-node --test tests/calc.test.mjs        # rate math tests (Node 20+)
+npm test                               # rate math and UI logic tests (Node 20+)
 ```
 
 ```

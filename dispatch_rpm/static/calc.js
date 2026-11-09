@@ -46,8 +46,8 @@ export function evaluate({ loaded, deadhead = 0, rate, target, floor, market = n
   const totalMiles = loaded + deadhead;
   const allIn = rate / totalMiles;
   const loadedRpm = rate / loaded;
-  const targetRate = Math.ceil(target * totalMiles);
-  const floorRate = Math.ceil(floor * totalMiles);
+  const targetRate = roundUp(target * totalMiles);
+  const floorRate = roundUp(floor * totalMiles);
   const marketRate = market > 0 ? Math.round(market * loaded) : null;
 
   let verdict, askRate = null;
@@ -76,8 +76,9 @@ export const SIMPLE = {
   mph: 55,
 };
 
-export function roundUp(n, step) {
-  return Math.ceil(n / step) * step;
+/** Round dollars up to a whole `step`, dropping float noise first: 2.2 * 800 is 1760.0000000000002. */
+export function roundUp(n, step = 1) {
+  return Math.ceil(Math.round(n * 1e6) / 1e6 / step) * step;
 }
 
 /**

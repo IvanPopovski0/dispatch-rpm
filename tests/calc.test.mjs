@@ -55,6 +55,17 @@ test('evaluate: exact threshold books', () => {
   assert.equal(evaluate({ loaded: 1000, rate: 2000, target: 2.5, floor: 2 }).verdict, 'negotiate');
 });
 
+test('evaluate: dollar thresholds ignore floating-point noise', () => {
+  // 2.2 * 800 is 1760.0000000000002 in floating point
+  const r = evaluate({ loaded: 800, rate: 1760, target: 2.2, floor: 2.2 });
+  assert.equal(r.verdict, 'book');
+  assert.equal(r.targetRate, 1760);
+  assert.equal(r.floorRate, 1760);
+  assert.equal(evaluate({ loaded: 800, rate: 1744, target: 2.18, floor: 2 }).targetRate, 1744);
+  // a real fraction of a dollar still rounds up
+  assert.equal(evaluate({ loaded: 801, rate: 1000, target: 2.2, floor: 2 }).targetRate, 1763);
+});
+
 test('evaluate: market comparison and ask', () => {
   const r = evaluate({ loaded: 1000, deadhead: 0, rate: 2300, target: 2.5, floor: 2, market: 3.07 });
   assert.equal(r.marketRate, 3070);
@@ -140,6 +151,16 @@ test('simpleAdvice drive days and short trips', async () => {
   const long = simpleAdvice({ loaded: 1300, rate: 4000, market: 3 }); // 23.6 h of driving
   assert.equal(long.shortTrip, false);
   assert.equal(long.days, 3);
+});
+
+test('simpleAdvice minimum does not jump a step on floating-point noise', async () => {
+  const { simpleAdvice } = await import('../dispatch_rpm/static/calc.js');
+  // $3.20 average -> walk away under $2.72/mi; 625 miles at $2.72 is exactly $1,700
+  const a = simpleAdvice({ loaded: 625, rate: 1500, market: 3.2 });
+  assert.equal(a.floorRate, 1700);
+  assert.equal(a.minimum, 1700);
+  // a real fraction of a cent still rounds up: 1401 miles at $1.3005 is $1,822.0005
+  assert.equal(simpleAdvice({ loaded: 1401, rate: 1000, market: 1.53 }).floorRate, 1823);
 });
 
 test('shortDate', async () => {

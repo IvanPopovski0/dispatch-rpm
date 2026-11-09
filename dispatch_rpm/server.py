@@ -16,7 +16,7 @@ from urllib.parse import parse_qs, urlsplit
 
 from . import __version__
 from .market import RateUpdater, resolve, set_manual
-from .miles import MilesError, MilesService, ZipNotFound
+from .miles import MilesError, MilesService, NoRoute, ZipNotFound
 from .storage import EQUIPMENT, Storage
 
 log = logging.getLogger(__name__)
@@ -156,7 +156,9 @@ class Handler(BaseHTTPRequestHandler):
         try:
             length = int(self.headers.get("Content-Length") or 0)
         except ValueError:
-            raise BadRequest("bad Content-Length") from None
+            length = -1
+        if length < 0:  # read(-1) would wait for the client to hang up
+            raise BadRequest("bad Content-Length")
         if length > MAX_BODY:
             raise BadRequest("request too large")
         raw = self.rfile.read(length) if length else b""
@@ -269,7 +271,7 @@ class Handler(BaseHTTPRequestHandler):
         dropoff = _zip((self._query.get("to") or [""])[0])
         try:
             self._json(self.server.miles.route(pickup, dropoff))
-        except ZipNotFound as e:
+        except (ZipNotFound, NoRoute) as e:
             self._error(HTTPStatus.NOT_FOUND, str(e))
         except MilesError as e:
             self._error(HTTPStatus.BAD_GATEWAY, str(e))

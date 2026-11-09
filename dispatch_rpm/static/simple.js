@@ -54,7 +54,7 @@ export function createSimpleView(root, ctx) {
     }
     if (cur.tripError) {
       facts.replaceChildren();
-      return show('', "Couldn't find the miles", el('p', {}, `${cur.tripError}. Check the ZIP codes.`));
+      return show('', "Couldn't find the miles", el('p', {}, `${cur.tripError}. Check the ZIP codes, or switch to Advanced and type the miles.`));
     }
     if (cur.pending || cur.loaded === null) {
       facts.replaceChildren();

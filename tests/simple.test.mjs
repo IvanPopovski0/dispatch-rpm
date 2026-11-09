@@ -1,35 +1,14 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
-// Just enough DOM for the Simple view to render into.
-class FakeElement {
-  constructor(tag = 'div') {
-    this.tagName = tag;
-    this.className = '';
-    this.value = '';
-    this.dataset = {};
-    this.childNodes = [];
-    this.classList = { toggle() {}, contains: () => false };
-  }
-  get children() { return this.childNodes.filter((n) => n instanceof FakeElement); }
-  get textContent() { return this.childNodes.map((n) => (n instanceof FakeElement ? n.textContent : String(n))).join(''); }
-  set textContent(text) { this.childNodes = text === '' ? [] : [String(text)]; }
-  append(...nodes) { this.childNodes.push(...nodes); }
-  replaceChildren(...nodes) { this.childNodes = nodes; }
-  setAttribute() {}
-  addEventListener() {}
-  focus() {}
-  blur() {}
-}
-globalThis.document = { createElement: (tag) => new FakeElement(tag), documentElement: new FakeElement('html') };
-globalThis.matchMedia = () => ({ matches: true });  // reduced motion: no animations
+import { FakeElement, fakeRoot } from './fake-dom.mjs';
 
 const { SIMPLE, driveTime, tripFacts } = await import('../dispatch_rpm/static/calc.js');
 const { createSimpleView } = await import('../dispatch_rpm/static/simple.js');
 
 function mount() {
-  const nodes = { '#s-answer': Object.assign(new FakeElement('section'), { className: 'answer glass' }) };
-  const root = { querySelector: (sel) => (nodes[sel] ??= new FakeElement()) };
+  const root = fakeRoot({ '#s-answer': Object.assign(new FakeElement('section'), { className: 'answer glass' }) });
+  const { nodes } = root;
   let cur;
   const ctx = {
     settings: { equipment: 'van' },
@@ -79,6 +58,15 @@ test('Simple: same pickup and delivery ZIP explains instead of crashing', () => 
   view.render({ zips: { truck: '30303', pickup: '30318', dropoff: '30318' }, loaded: 0, deadhead: 6 });
   assert.equal(view.title(), 'No miles to measure');
   assert.doesNotMatch(view.answer() + view.facts().join(), /Infinity|NaN/);
+});
+
+test('Simple: no road route is an error with a way forward, not an estimate', () => {
+  const view = mount();
+  view.render({ tripError: 'No road route between these ZIP codes', loaded: null });
+  assert.equal(view.title(), "Couldn't find the miles");
+  assert.match(view.answer(), /No road route.*type the miles/);
+  assert.doesNotMatch(view.answer(), /estimated|busy/);
+  assert.deepEqual(view.facts(), []);
 });
 
 test('Simple: fact tiles show the shared trip calculation', () => {

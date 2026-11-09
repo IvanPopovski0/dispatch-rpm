@@ -59,19 +59,28 @@ export function createAdvancedView(root, ctx) {
     }
   }
 
-  function renderStatus(cur) {
-    if (ctx.flash) return; // a save message is showing
-    if (!cur.zips.pickup || !cur.zips.dropoff) return setStatus('');
-    if (cur.tripError) return setStatus(`${cur.tripError}. Type the miles in.`, 'error');
-    if (cur.tripLoading) return setStatus('Looking up miles…');
+  /** [text, kind] about the load being typed; empty text when there's nothing to say. */
+  function liveStatus(cur) {
+    if (!cur.zips.pickup || !cur.zips.dropoff) return [''];
+    if (cur.tripError) return [`${cur.tripError}. Type the miles in.`, 'error'];
+    if (cur.tripLoading) return ['Looking up miles…'];
     const r = cur.route;
-    if (!r) return setStatus('');
+    if (!r) return [''];
     let text = `${r.pickup} → ${r.dropoff}: ${miles(r.miles)}`;
     if (cur.loadedTyped) text += ` (using your ${miles(cur.loaded ?? 0)})`;
     if (cur.emptyLookup && cur.deadheadAuto !== null) text += ` · truck to pickup ${miles(cur.deadheadAuto)}`;
-    if (cur.estimated) return setStatus(`${text}. ESTIMATE, the route server is busy, so double-check.`, 'warn');
-    if (cur.emptyError) return setStatus(`${text}. Couldn't get empty miles: ${cur.emptyError}`, 'warn');
-    setStatus(text);
+    if (cur.estimated) return [`${text}. ESTIMATE, the route server is busy, so double-check.`, 'warn'];
+    if (cur.emptyError) return [`${text}. Couldn't get empty miles: ${cur.emptyError}`, 'warn'];
+    return [text];
+  }
+
+  function renderStatus(cur) {
+    const [text, kind] = liveStatus(cur);
+    if (ctx.flash) {
+      if (!text) return; // keep the save message until there's news about the next load
+      ctx.flash = false;
+    }
+    setStatus(text, kind);
   }
 
   // ------------------------------------------------------------ verdict

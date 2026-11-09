@@ -1,3 +1,4 @@
+import http.client
 import json
 import tempfile
 import threading
@@ -6,7 +7,7 @@ from pathlib import Path
 from urllib.error import HTTPError
 from urllib.request import Request, urlopen
 
-from dispatch_rpm.miles import MilesError, Place, ZipNotFound
+from dispatch_rpm.miles import MilesError, NoRoute, Place, ZipNotFound
 from dispatch_rpm.server import DispatchServer, Lifecycle
 from dispatch_rpm.storage import Storage
 
@@ -20,6 +21,8 @@ class FakeMiles:
     def route(self, pickup, dropoff):
         if dropoff == "00000":
             raise ZipNotFound("ZIP 00000 not found")
+        if dropoff == "96813":
+            raise NoRoute("No road route between these ZIP codes")
         if dropoff == "99999":
             raise MilesError("Can't reach the ZIP lookup service")
         return {"pickup": "Chicago, IL", "dropoff": "Dallas, TX", "miles": 968, "source": "road"}
@@ -157,6 +160,25 @@ class ServerTest(unittest.TestCase):
         same = self.base.replace("127.0.0.1", "localhost")
         status, _ = self.json("POST", "/api/settings", {"target": "3"}, headers={"Origin": same})
         self.assertEqual(status, 200)
+
+    def test_rejects_bad_content_length_without_waiting(self):
+        host, port = self.base.removeprefix("http://").split(":")
+        for value in ("-1", "-5", "abc"):
+            with self.subTest(content_length=value):
+                # The connection stays open, so a server that tries to read the body would hang here.
+                conn = http.client.HTTPConnection(host, int(port), timeout=3)
+                try:
+                    conn.putrequest("POST", "/api/settings")
+                    conn.putheader("Content-Length", value)
+                    conn.endheaders()
+                    resp = conn.getresponse()
+                    self.assertEqual((resp.status, json.loads(resp.read())), (400, {"error": "bad Content-Length"}))
+                finally:
+                    conn.close()
+
+    def test_no_road_route_is_reported_as_not_found(self):
+        status, data = self.json("GET", "/api/miles?from=60601&to=96813")
+        self.assertEqual((status, data), (404, {"error": "No road route between these ZIP codes"}))
 
     def test_beacon_with_text_plain(self):
         req = Request(self.base + "/api/hello", data=b'{"id": "abc"}', method="POST",

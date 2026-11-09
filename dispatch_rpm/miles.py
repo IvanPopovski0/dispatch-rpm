@@ -2,7 +2,8 @@
 
 ZIP codes are turned into coordinates with zippopotam.us, then routed with
 the public OSRM demo server (OpenStreetMap data). If OSRM is down we fall
-back to straight-line distance times a typical road factor, and say so.
+back to straight-line distance times a typical road factor, and say so. If
+OSRM says no road connects the two, that's an error: the miles must be typed.
 """
 
 from __future__ import annotations
@@ -34,6 +35,10 @@ class MilesError(Exception):
 
 class ZipNotFound(MilesError):
     pass
+
+
+class NoRoute(MilesError):
+    """No road connects the two points (islands, some Alaska ZIPs); a straight line would be wrong."""
 
 
 @dataclass
@@ -95,8 +100,18 @@ class MilesService:
                 time.sleep(wait)
             try:
                 data = self._fetch(url, 8)
+            except HTTPError as e:
+                # OSRM answers 400 with a JSON code when there is no road between the points.
+                try:
+                    data = json.loads(e.read())
+                except (AttributeError, OSError, ValueError):
+                    raise e from None
+                if not isinstance(data, dict):
+                    raise
             finally:
                 self._osrm_last = time.monotonic()
+        if data.get("code") in ("NoRoute", "NoSegment"):
+            raise NoRoute("No road route between these ZIP codes")
         if data.get("code") != "Ok" or not data.get("routes"):
             raise MilesError("no route found")
         return data["routes"][0]["distance"] / 1609.344
@@ -114,6 +129,8 @@ class MilesService:
 
         try:
             miles = self._road_miles(a, b)
+        except NoRoute:
+            raise
         except (MilesError, HTTPError, URLError, OSError, ValueError, KeyError, TypeError):
             # Estimates are not cached so the next lookup tries the real route again.
             miles = straight_line_miles(a, b) * ROAD_FACTOR

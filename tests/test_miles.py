@@ -1,3 +1,4 @@
+import io
 import tempfile
 import unittest
 from pathlib import Path
@@ -5,7 +6,7 @@ from unittest import mock
 from urllib.error import HTTPError, URLError
 
 from dispatch_rpm import miles
-from dispatch_rpm.miles import MilesError, MilesService, Place, ZipNotFound, straight_line_miles
+from dispatch_rpm.miles import MilesError, MilesService, NoRoute, Place, ZipNotFound, straight_line_miles
 from dispatch_rpm.storage import Storage
 
 ZIPS = {
@@ -65,8 +66,22 @@ class MilesTest(unittest.TestCase):
         self.assertEqual(second["miles"], 968)
         self.assertEqual(len(fetch.calls), calls, "cached lookup should not hit the network")
 
+    def test_no_road_route_is_an_error_not_an_estimate(self):
+        # OSRM's real answer is HTTP 400 with a JSON code; a 200 with the code is handled the same.
+        for answer in (HTTPError("osrm", 400, "Bad Request", {}, io.BytesIO(b'{"code": "NoRoute"}')),
+                       HTTPError("osrm", 400, "Bad Request", {}, io.BytesIO(b'{"code": "NoSegment"}')),
+                       {"code": "NoRoute", "routes": []}):
+            with self.subTest(answer=answer):
+                svc = MilesService(self.db, FakeFetch(osrm=answer))
+                with self.assertRaises(NoRoute) as ctx:
+                    svc.route("60601", "75201")
+                self.assertEqual(str(ctx.exception), "No road route between these ZIP codes")
+        self.assertIsNone(self.db.get_route("60601", "75201"))
+
     def test_falls_back_to_estimate(self):
-        for failure in (URLError("down"), TimeoutError(), {"code": "NoRoute", "routes": []}, {"weird": 1}):
+        for failure in (URLError("down"), TimeoutError(), {"code": "InvalidQuery"}, {"weird": 1},
+                        HTTPError("osrm", 429, "Too Many Requests", {}, io.BytesIO(b"<html>slow down</html>")),
+                        HTTPError("osrm", 502, "Bad Gateway", {}, None)):
             with self.subTest(failure=failure):
                 svc = MilesService(self.db, FakeFetch(osrm=failure))
                 result = svc.route("60601", "75201")

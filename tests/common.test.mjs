@@ -5,6 +5,9 @@ globalThis.matchMedia = () => ({ matches: true });  // fx.js reads it on import
 const { api, createSettingsSaver } = await import('../dispatch_rpm/static/common.js');
 
 const settle = () => new Promise((resolve) => setTimeout(resolve, 20));
+async function until(check) {
+  for (let i = 0; i < 100 && !check(); i++) await settle();
+}
 const json = (status, body) => new Response(JSON.stringify(body), { status });
 const offline = () => new TypeError('fetch failed');
 
@@ -80,9 +83,10 @@ test('a lost connection is retried on its own, a few times, then waits for the n
   const bodies = stubFetch(offline(), offline(), offline(), json(200, {}));
 
   saver.queue('ui_mode', 'advanced');
-  await settle();
+  await until(() => bodies.length >= 3);
   assert.equal(bodies.length, 3, 'first try + 2 retries');
   assert.deepEqual(saved, []);
+  await settle();
   await settle();
   assert.equal(bodies.length, 3, 'no endless retries');
 

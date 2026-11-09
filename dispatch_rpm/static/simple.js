@@ -1,7 +1,7 @@
 // Simple mode: five plain questions, one plain answer with the words to say.
 
 import {
-  EQUIPMENT, SIMPLE, driveTime, implausibleOffer, money, normalizeZip, parseNumber, rpm, simpleAdvice,
+  EQUIPMENT, SIMPLE, driveTime, implausibleOffer, money, normalizeZip, parseNumber, rpm, simpleAdvice, tripFacts,
 } from './calc.js';
 import { el, syncTiles, tile, typoHint, verdictPanel } from './common.js';
 import { rateSource } from './rates.js';
@@ -57,22 +57,29 @@ export function createSimpleView(root, ctx) {
       return show('', "Couldn't find the miles", el('p', {}, `${cur.tripError}. Check the ZIP codes.`));
     }
     if (cur.pending || cur.loaded === null) {
+      facts.replaceChildren();
       return show('', 'Finding the miles…');
     }
     const deadhead = cur.deadhead ?? 0;
-    const total = cur.loaded + deadhead;
-    const dayCount = Math.max(1, Math.ceil(total / SIMPLE.mph / SIMPLE.driveHoursPerDay));
-    const factTiles = [
-      tile(`${Math.round(total).toLocaleString('en-US')} mi`, `${Math.round(cur.loaded)} loaded + ${Math.round(deadhead)} empty`),
-      tile(cur.rate > 0 ? `${rpm(cur.rate / total)}/mi` : '—', 'pays per mile, all miles'),
-      tile(driveTime(total, SIMPLE.mph), `driving, about ${dayCount} day${dayCount > 1 ? 's' : ''}`),
-    ];
-    syncTiles(facts, factTiles);
+    const trip = tripFacts({ loaded: cur.loaded, deadhead, rate: cur.rate });
+    if (!trip) {
+      facts.replaceChildren();
+      const why = cur.zips.pickup === cur.zips.dropoff
+        ? 'Pickup and delivery are the same ZIP code'
+        : 'This trip has no loaded miles';
+      return show('', 'No miles to measure',
+        el('p', {}, `${why}. For a local load, switch to Advanced and type the loaded miles.`));
+    }
+    syncTiles(facts, [
+      tile(`${Math.round(trip.totalMiles).toLocaleString('en-US')} mi`, `${Math.round(cur.loaded)} loaded + ${Math.round(deadhead)} empty`),
+      tile(trip.perMile !== null ? `${rpm(trip.perMile)}/mi` : '—', 'pays per mile, all miles'),
+      tile(driveTime(trip.totalMiles, SIMPLE.mph), `driving, about ${trip.days} day${trip.days > 1 ? 's' : ''}`),
+    ]);
 
     if (!(cur.rate > 0)) return show('', 'What is the broker paying?');
     if (!market) return show('', 'No rate for this truck type yet', el('p', {}, 'Open Rates (top right) to set one.'));
 
-    const typo = implausibleOffer({ rate: cur.rate, totalMiles: total, market });
+    const typo = implausibleOffer({ rate: cur.rate, totalMiles: trip.totalMiles, market });
     if (typo) {
       return show('check', 'Check the offer',
         el('p', { class: 'say' }, `That’s ${rpm(typo.perMile)} a mile, ${Math.round(typo.times)}× the average.`),

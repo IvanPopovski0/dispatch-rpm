@@ -143,14 +143,34 @@ test('simpleAdvice uses the market average as the target', async () => {
   assert.equal(simpleAdvice({ loaded: 0, rate: 2000, market }), null);
 });
 
-test('simpleAdvice drive days and short trips', async () => {
+test('simpleAdvice short trips', async () => {
   const { simpleAdvice } = await import('../dispatch_rpm/static/calc.js');
-  const short = simpleAdvice({ loaded: 120, rate: 600, market: 3 });
-  assert.equal(short.shortTrip, true);
-  assert.equal(short.days, 1);
-  const long = simpleAdvice({ loaded: 1300, rate: 4000, market: 3 }); // 23.6 h of driving
-  assert.equal(long.shortTrip, false);
+  assert.equal(simpleAdvice({ loaded: 120, rate: 600, market: 3 }).shortTrip, true);
+  assert.equal(simpleAdvice({ loaded: 1300, rate: 4000, market: 3 }).shortTrip, false);
+});
+
+test('tripFacts: miles, pay per mile and driving days from the SIMPLE constants', async () => {
+  const { SIMPLE, tripFacts } = await import('../dispatch_rpm/static/calc.js');
+  const long = tripFacts({ loaded: 1200, deadhead: 100, rate: 3900 }); // 23.6 h of driving
+  assert.equal(long.totalMiles, 1300);
+  assert.equal(long.perMile, 3);
+  assert.equal(long.hours, 1300 / SIMPLE.mph);
   assert.equal(long.days, 3);
+  assert.equal(tripFacts({ loaded: 120, rate: 600 }).days, 1);
+
+  const fullDay = SIMPLE.mph * SIMPLE.driveHoursPerDay;
+  assert.equal(tripFacts({ loaded: fullDay }).days, 1);
+  assert.equal(tripFacts({ loaded: fullDay + 1 }).days, 2);
+  assert.equal(tripFacts({ loaded: 500 }).perMile, null, 'no rate yet');
+  assert.equal(tripFacts({ loaded: 500, deadhead: null }).totalMiles, 500, 'empty miles unknown');
+});
+
+test('tripFacts: no loaded miles gives no facts instead of Infinity', async () => {
+  const { simpleAdvice, tripFacts } = await import('../dispatch_rpm/static/calc.js');
+  assert.equal(tripFacts({ loaded: 0, rate: 2000 }), null);           // same pickup and delivery ZIP
+  assert.equal(tripFacts({ loaded: 0, deadhead: 40, rate: 2000 }), null);
+  assert.equal(tripFacts({ loaded: null, rate: 2000 }), null);        // still looking up
+  assert.equal(simpleAdvice({ loaded: 0, deadhead: 40, rate: 2000, market: 3 }), null);
 });
 
 test('simpleAdvice minimum does not jump a step on floating-point noise', async () => {

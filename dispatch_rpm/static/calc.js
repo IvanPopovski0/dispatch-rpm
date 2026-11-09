@@ -89,6 +89,22 @@ export function roundUp(n, step = 1) {
 }
 
 /**
+ * Miles, pay per mile and driving time for the simple screen. Returns null
+ * without loaded miles (e.g. pickup and delivery in the same ZIP).
+ */
+export function tripFacts({ loaded, deadhead = 0, rate }) {
+  if (!(loaded > 0)) return null;
+  const totalMiles = loaded + (deadhead > 0 ? deadhead : 0);
+  const hours = totalMiles / SIMPLE.mph;
+  return {
+    totalMiles,
+    perMile: rate > 0 ? rate / totalMiles : null,
+    hours,
+    days: Math.max(1, Math.ceil(hours / SIMPLE.driveHoursPerDay)),
+  };
+}
+
+/**
  * Plain-language advice for the simple screen. `market` is the national
  * average $/mile; it is used as the all-in target, so deadhead counts too.
  */
@@ -96,13 +112,10 @@ export function simpleAdvice({ loaded, deadhead = 0, rate, market }) {
   if (!(market > 0)) return null;
   const r = evaluate({ loaded, deadhead, rate, target: market, floor: market * SIMPLE.walkAwayShare, market });
   if (!r) return null;
-  const hours = r.totalMiles / SIMPLE.mph;
   return {
     ...r,
     ask: roundUp(r.targetRate * SIMPLE.counterMarkup, SIMPLE.roundTo),
     minimum: roundUp(r.floorRate, SIMPLE.roundTo),
-    hours,
-    days: Math.max(1, Math.ceil(hours / SIMPLE.driveHoursPerDay)),
     shortTrip: loaded < SIMPLE.shortTripMiles,
   };
 }

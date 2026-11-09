@@ -96,7 +96,9 @@ export function createAdvancedView(root, ctx) {
 
     const r = target > 0 ? evaluate({ loaded: cur.loaded, deadhead, rate: cur.rate, target, floor, market }) : null;
     if (!r) {
-      show('', target > 0 ? 'Enter pickup, drop and rate' : 'Set your target $/mi under Targets');
+      const noMiles = cur.route && !(cur.loaded > 0);  // e.g. pickup and delivery in the same ZIP
+      show('', !(target > 0) ? 'Set your target $/mi under Targets'
+        : noMiles ? 'Type the loaded miles' : 'Enter pickup, drop and rate');
       syncTiles($('#a-stats'), tiles);
       return;
     }

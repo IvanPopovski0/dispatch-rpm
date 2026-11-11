@@ -1,0 +1,8 @@
+{
+  "name": "dispatch-rpm-ui",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "node --test tests/calc.test.mjs tests/common.test.mjs tests/load.test.mjs tests/simple.test.mjs tests/advanced.test.mjs tests/fx.test.mjs"
+  }
+}

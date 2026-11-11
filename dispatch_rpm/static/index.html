@@ -1,0 +1,286 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Dispatch RPM</title>
+<link rel="icon" type="image/svg+xml" href="icon.svg">
+<link rel="stylesheet" href="style.css">
+<script type="module" src="main.js"></script>
+</head>
+<body>
+<canvas id="backdrop" aria-hidden="true"></canvas>
+<div class="frost" aria-hidden="true"></div>
+
+<div class="app">
+  <header class="topbar glass">
+    <div class="brand">
+      <img class="logo" src="logo-mark.svg" alt="" width="47" height="34">
+      <span class="brand-name">Dispatch <b>RPM</b></span>
+    </div>
+
+    <div class="seg" id="mode-seg" role="radiogroup" aria-label="Mode">
+      <span class="seg-thumb" aria-hidden="true"></span>
+      <button type="button" role="radio" data-value="simple">Simple</button>
+      <button type="button" role="radio" data-value="advanced">Advanced</button>
+    </div>
+
+    <button type="button" class="rate-chip" id="rates-open" aria-haspopup="dialog">
+      <span class="pulse" aria-hidden="true"></span>
+      <span class="rate-chip-label" id="rate-chip-label">Rates</span>
+    </button>
+  </header>
+
+  <p class="conn" id="conn" role="status"></p>
+
+  <main>
+    <!-- ============================================================ SIMPLE -->
+    <section class="view view-simple" id="view-simple" aria-label="Simple">
+      <h1 class="hero-title">Is this load worth it?</h1>
+
+      <div class="simple-grid">
+      <div class="glass panel form">
+        <div class="seg seg-wide" data-equipment role="radiogroup" aria-label="Truck type">
+          <span class="seg-thumb" aria-hidden="true"></span>
+          <button type="button" role="radio" data-value="van">Dry van</button>
+          <button type="button" role="radio" data-value="reefer">Reefer</button>
+          <button type="button" role="radio" data-value="flatbed">Flatbed</button>
+        </div>
+
+        <div class="q">
+          <label for="s-truck">Where is the truck now? <small>ZIP code</small></label>
+          <input id="s-truck" data-field="truck" inputmode="numeric" maxlength="10" autocomplete="off" placeholder="30318">
+          <p class="found" data-found="truck"></p>
+        </div>
+        <div class="q-row">
+          <div class="q">
+            <label for="s-pickup">Pickup ZIP</label>
+            <input id="s-pickup" data-field="pickup" inputmode="numeric" maxlength="10" autocomplete="off">
+            <p class="found" data-found="pickup"></p>
+          </div>
+          <div class="route-arrow" aria-hidden="true"><span></span></div>
+          <div class="q">
+            <label for="s-dropoff">Delivery ZIP</label>
+            <input id="s-dropoff" data-field="dropoff" inputmode="numeric" maxlength="10" autocomplete="off">
+            <p class="found" data-found="dropoff"></p>
+          </div>
+        </div>
+        <label class="switch-row ltl">
+          <span><b>LTL / partial</b><small>More than one pickup or drop</small></span>
+          <button type="button" class="switch" data-ltl role="switch" aria-checked="false"><span></span></button>
+        </label>
+        <div class="stops" data-stops hidden></div>
+        <div class="q">
+          <label for="s-rate"><span data-rate-label>What is the broker paying?</span> <small data-rate-hint>total $</small></label>
+          <div class="money"><span>$</span><input id="s-rate" data-field="rate" inputmode="decimal" autocomplete="off" placeholder="2,000"></div>
+          <p class="found" data-found="rate"></p>
+        </div>
+      </div>
+
+      <div class="simple-side">
+        <section class="answer glass" id="s-answer" aria-live="polite">
+          <h2>Fill in the questions</h2>
+        </section>
+
+        <div class="tiles" id="s-facts"></div>
+
+        <button type="button" class="btn btn-ghost btn-block" id="s-next">Next load <kbd>Esc</kbd></button>
+        <p class="note" id="s-history"></p>
+        <p class="note" id="s-note"></p>
+        <p class="note">Miles are car-routing estimates (OpenStreetMap), not truck routes. Confirm with the broker.</p>
+      </div>
+      </div>
+    </section>
+
+    <!-- ============================================================ ADVANCED -->
+    <section class="view view-advanced" id="view-advanced" aria-label="Advanced" hidden>
+      <div class="adv-grid">
+        <div class="glass panel">
+          <div class="panel-head">
+            <h2 class="eyebrow">Load</h2>
+            <div class="seg" data-equipment role="radiogroup" aria-label="Truck type">
+              <span class="seg-thumb" aria-hidden="true"></span>
+              <button type="button" role="radio" data-value="van">Van</button>
+              <button type="button" role="radio" data-value="reefer">Reefer</button>
+              <button type="button" role="radio" data-value="flatbed">Flatbed</button>
+            </div>
+          </div>
+          <div class="fields">
+            <label>Truck at ZIP<input id="a-truck" data-field="truck" inputmode="numeric" maxlength="10" autocomplete="off" placeholder="optional"></label>
+            <label>Pickup ZIP<input id="a-pickup" data-field="pickup" inputmode="numeric" maxlength="10" autocomplete="off"></label>
+            <label>Drop ZIP<input id="a-dropoff" data-field="dropoff" inputmode="numeric" maxlength="10" autocomplete="off"></label>
+            <label>Loaded miles<input id="a-loaded" data-field="loaded" inputmode="decimal" autocomplete="off" placeholder="auto"></label>
+            <label>Deadhead miles<input id="a-deadhead" data-field="deadhead" inputmode="decimal" autocomplete="off" placeholder="auto"></label>
+            <label><span data-rate-label>Offered rate $</span><input id="a-rate" data-field="rate" inputmode="decimal" autocomplete="off"></label>
+          </div>
+          <label class="switch-row ltl">
+            <span><b>LTL / partial</b><small>More than one pickup or drop</small></span>
+            <button type="button" class="switch" data-ltl role="switch" aria-checked="false"><span></span></button>
+          </label>
+          <div class="stops" data-stops hidden></div>
+          <details class="quote-details" id="a-extras">
+            <summary>Extras &amp; costs <small>optional</small></summary>
+            <div class="fields">
+              <label>Stop-off pay $<input id="a-stopoff" data-field="stopoff" inputmode="decimal" autocomplete="off" placeholder="broker pays"></label>
+              <label>Detention $<input id="a-detention" data-field="detention" inputmode="decimal" autocomplete="off" placeholder="if it happens"></label>
+              <label>Layover $<input id="a-layover" data-field="layover" inputmode="decimal" autocomplete="off" placeholder="if it happens"></label>
+              <label>Tolls $<input id="a-tolls" data-field="tolls" inputmode="decimal" autocomplete="off" placeholder="you pay"></label>
+              <label>Lumper $<input id="a-lumper" data-field="lumper" inputmode="decimal" autocomplete="off" placeholder="you pay"></label>
+            </div>
+            <p class="fine">Stop-off pay is added to the offer. Detention and layover aren’t counted until they’re paid. Tolls and lumper are your costs.</p>
+          </details>
+          <details class="quote-details" id="a-schedule-box">
+            <summary>Schedule <small>optional</small></summary>
+            <div class="fields">
+              <label class="full">Pickup appointment<input id="a-pickup-at" data-field="pickup_at" type="datetime-local"></label>
+              <label class="full">Delivery appointment<input id="a-deliver-at" data-field="deliver_at" type="datetime-local"></label>
+              <label>Load / unload h<span class="pair"><input id="a-load-h" data-field="load_h" inputmode="decimal" placeholder="2" aria-label="Loading hours"><input id="a-unload-h" data-field="unload_h" inputmode="decimal" placeholder="2" aria-label="Unloading hours"></span></label>
+            </div>
+            <p class="status" id="a-schedule"></p>
+          </details>
+          <details class="quote-details" id="a-details">
+            <summary>Broker &amp; notes <small id="a-details-hint">optional</small></summary>
+            <div class="fields">
+              <label>Broker<input id="a-broker" data-field="broker" maxlength="80" autocomplete="off"></label>
+              <label>MC number<input id="a-mc" data-field="mc" maxlength="12" autocomplete="off" placeholder="MC 123456"></label>
+              <label>Status<select id="a-status-pick" data-field="status">
+                <option value="">Quoted</option><option value="booked">Booked</option><option value="passed">Passed</option>
+              </select></label>
+              <label class="wide">Notes<input id="a-notes" data-field="notes" maxlength="280" autocomplete="off"></label>
+              <label id="a-final-label" hidden>Agreed rate $<input id="a-final" data-field="final" inputmode="decimal" autocomplete="off"></label>
+            </div>
+            <p class="fine" id="a-broker-hint"></p>
+          </details>
+          <p class="status" id="a-status"></p>
+          <div class="row" id="a-actions">
+            <button type="button" class="btn btn-gold" id="a-save">Save quote <kbd>Enter</kbd></button>
+            <button type="button" class="btn btn-ghost" id="a-clear">Clear <kbd>Esc</kbd></button>
+            <a class="link" id="a-gmaps" href="#" target="_blank" rel="noopener" hidden>Open in Google Maps ↗</a>
+          </div>
+          <p class="fine">Miles are car-routing estimates (OpenStreetMap), not truck routes. Confirm with the broker.</p>
+        </div>
+
+        <div class="adv-side">
+          <section class="verdict glass" id="a-verdict" aria-live="polite"><h2>Enter pickup, drop and rate</h2></section>
+          <section class="glass panel nego" id="a-nego" aria-label="Negotiation" hidden>
+            <h2 class="eyebrow">Negotiation</h2>
+            <div class="table-wrap"><table id="a-nego-table"></table></div>
+            <label class="nego-counter">Your counter $<input id="a-counter" data-field="counter" inputmode="decimal" autocomplete="off" placeholder="optional"></label>
+            <p class="status" id="a-nego-note"></p>
+            <p class="status" id="a-lane-history"></p>
+            <p class="fine" id="a-nego-message"></p>
+          </section>
+          <div class="tiles tiles-2" id="a-stats"></div>
+          <section class="glass panel costs" id="a-costs" aria-label="Trip costs" hidden>
+            <h2 class="eyebrow">Trip costs <span>estimate from your inputs</span></h2>
+            <div class="table-wrap"><table id="a-costs-table"></table></div>
+            <p class="fine" id="a-costs-note"></p>
+          </section>
+        </div>
+      </div>
+
+      <div class="glass panel">
+        <div class="panel-head">
+          <h2 class="eyebrow">Your averages <span>all-in $/mi from saved quotes</span></h2>
+        </div>
+        <div class="tiles tiles-4" id="a-averages"></div>
+      </div>
+
+      <div class="adv-grid adv-grid-even">
+        <details class="glass panel disclosure">
+          <summary><span class="eyebrow">Targets</span><span class="summary-hint" id="a-targets-hint"></span></summary>
+          <div class="fields fields-3">
+            <label>Target all-in $/mi<input data-setting="target" inputmode="decimal" maxlength="60"></label>
+            <label>Walk-away $/mi<input data-setting="floor" inputmode="decimal" maxlength="60"></label>
+            <label>Avg speed mph<input data-setting="speed" inputmode="decimal" maxlength="60"></label>
+          </div>
+          <div class="fields fields-3">
+            <label>Truck MPG<input data-setting="mpg" inputmode="decimal" maxlength="60" placeholder="optional"></label>
+            <label>Cost $/mi<input data-setting="cost_per_mile" inputmode="decimal" maxlength="60" placeholder="optional"></label>
+            <label>Diesel $/gal<input data-setting="fuel_price" inputmode="decimal" maxlength="60" placeholder="EIA weekly"></label>
+            <label class="wide">Does cost $/mi include fuel?<select data-setting="cost_includes_fuel">
+              <option value="0">No, add fuel from MPG</option><option value="1">Yes, don’t add fuel</option>
+            </select></label>
+          </div>
+          <p class="status" id="a-settings-note"></p>
+        </details>
+        <details class="glass panel disclosure" id="a-history-card">
+          <summary><span class="eyebrow">Saved quotes</span><span class="summary-hint" id="a-history-count"></span></summary>
+          <div class="row">
+            <input class="history-filter" id="a-history-filter" type="search" autocomplete="off" placeholder="Filter by broker, MC, city or ZIP" aria-label="Filter saved quotes">
+            <a class="btn btn-ghost btn-sm" href="/api/quotes.csv" download>Export CSV</a>
+          </div>
+          <div class="table-wrap" id="a-history"></div>
+        </details>
+      </div>
+    </section>
+  </main>
+
+  <footer class="foot">
+    <img class="signature" src="logo.svg" alt="Dispatch RPM, since 2026" width="168" height="114">
+    <span class="credit-wrap">
+      <a class="credit" href="https://github.com/IvanPopovski0" target="_blank" rel="noopener">
+        <span class="credit-ring" aria-hidden="true"></span>
+        <span class="credit-body">
+          <span class="credit-glow" aria-hidden="true"></span>
+          <span class="credit-mark" aria-hidden="true"><svg viewBox="0 0 16 16"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/></svg></span>
+          <span>Developed by <span class="credit-name">Ivan Popovski</span></span>
+          <span class="credit-arrow" aria-hidden="true">↗</span>
+        </span>
+      </a>
+    </span>
+    <div class="foot-meta">
+      <span>Miles: <a href="https://project-osrm.org" target="_blank" rel="noopener">OSRM</a> · map data © <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap contributors</a> · ZIPs: <a href="https://zippopotam.us" target="_blank" rel="noopener">Zippopotam.us</a> · rates: DAT, EIA</span>
+      <span><button type="button" class="link" id="fx-toggle">Motion on</button> · <span id="version"></span></span>
+    </div>
+  </footer>
+</div>
+
+<!-- ============================================================ RATES SHEET -->
+<div class="scrim" id="rates-scrim" hidden></div>
+<aside class="sheet glass" id="rates-sheet" role="dialog" aria-modal="true" aria-labelledby="rates-title" hidden>
+  <header class="sheet-head">
+    <h2 id="rates-title">Rates</h2>
+    <button type="button" class="icon-btn" id="rates-close" aria-label="Close">✕</button>
+  </header>
+  <p class="sheet-lede">The $/mile every verdict is measured against. Both Simple and Advanced use it.</p>
+
+  <div class="seg seg-wide" id="rate-mode-seg" role="radiogroup" aria-label="Rate source">
+    <span class="seg-thumb" aria-hidden="true"></span>
+    <button type="button" role="radio" data-value="auto">National average</button>
+    <button type="button" role="radio" data-value="company">Company rates</button>
+  </div>
+
+  <div id="rates-auto">
+    <div class="rate-list" id="rate-list"></div>
+    <div class="sheet-section">
+      <div class="panel-head">
+        <h3 class="eyebrow">Sources</h3>
+        <button type="button" class="btn btn-ghost btn-sm" id="rates-check">Check now</button>
+      </div>
+      <ul class="sources" id="rate-sources"></ul>
+      <p class="fine">Every 12 hours the app reads DAT's weekly national reports and the U.S. diesel price.
+        Rate = DAT linehaul + fuel surcharge, with the surcharge moving 1¢/mi per 6¢/gal of diesel.
+        Numbers more than 20% away from the last accepted one are held back until another week's report confirms them.</p>
+    </div>
+  </div>
+
+  <div id="rates-company" hidden>
+    <p class="fine">For rates a manager gives you. They're kept on this computer and replace the national average everywhere.</p>
+    <div class="fields fields-3">
+      <label>Dry van $/mi<input data-company="van" inputmode="decimal" maxlength="60" placeholder="3.25"></label>
+      <label>Reefer $/mi<input data-company="reefer" inputmode="decimal" maxlength="60" placeholder="3.80"></label>
+      <label>Flatbed $/mi<input data-company="flatbed" inputmode="decimal" maxlength="60" placeholder="3.70"></label>
+    </div>
+    <div class="fields">
+      <label>Set by<input id="company-by" maxlength="60" autocomplete="off" placeholder="Name"></label>
+    </div>
+    <label class="switch-row">
+      <span><b>Adjust for diesel every week</b><small>Moves these rates 1¢/mi per 6¢/gal from the day they were set.</small></span>
+      <button type="button" class="switch" id="company-diesel" role="switch" aria-checked="true"><span></span></button>
+    </label>
+    <p class="fine" id="company-meta"></p>
+  </div>
+</aside>
+</body>
+</html>
